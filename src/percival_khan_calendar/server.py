@@ -93,7 +93,7 @@ def executar_comando_khal(comando: list[str]) -> str:
     except FileNotFoundError:
         return "Erro de infraestrutura: O binário 'khal' não foi encontrado no ambiente virtual."
 
-@mcp.tool()
+@mcp.tool("khan_list_events")
 def list_events(start_date: str = "today", range_or_end: str = "") -> str:
     """
     List scheduled events from the local calendar.
@@ -110,7 +110,7 @@ def list_events(start_date: str = "today", range_or_end: str = "") -> str:
     resultado = executar_comando_khal(comando)
     return envolver_dados_nao_confiaveis(resultado, f"Agenda from {start_date}")
 
-@mcp.tool()
+@mcp.tool("khan_search_events")
 def search_events(query: str) -> str:
     """
     Search for events across the entire calendar database using a keyword.
@@ -121,7 +121,7 @@ def search_events(query: str) -> str:
     """
     resultado = executar_comando_khal(["search", query])
     return envolver_dados_nao_confiaveis(resultado, f"Search results for: {query}")
-@mcp.tool()
+@mcp.tool("khan_create_event")
 def create_event(
     title: str,
     start: str,
@@ -210,7 +210,7 @@ def localizar_arquivo_evento(termo_identificador: str) -> list[str]:
             
     return arquivos_encontrados
 
-@mcp.tool()
+@mcp.tool("khan_delete_event")
 def delete_event(exact_term: str) -> str:
     """
     Permanently remove an event from the calendar.
@@ -233,7 +233,7 @@ def delete_event(exact_term: str) -> str:
     except OSError as e:
         return f"System error while trying to delete file: {e}"
 
-@mcp.tool()
+@mcp.tool("khan_update_event")
 def update_event(
     old_term: str,
     new_title: str,
@@ -274,7 +274,7 @@ def update_event(
     
     return f"Event updated successfully!\\nRecreation Log: {resultado_criacao}"
 
-@mcp.tool()
+@mcp.tool("khan_view_agenda")
 def view_agenda_list(period: str = "7d") -> str:
     """
     Generate a clean agenda list view (text-based) optimized for chat interfaces.
@@ -312,7 +312,7 @@ def view_agenda_list(period: str = "7d") -> str:
         
     return ui_textual
 
-@mcp.tool()
+@mcp.tool("khan_view_calendar")
 def view_calendar_grid(reference_month: str = "today") -> str:
     """
     Generate a visual matrix/grid view of the month.
@@ -345,7 +345,7 @@ def view_calendar_grid(reference_month: str = "today") -> str:
     return ui_textual
 
 
-@mcp.tool()
+@mcp.tool("khan_get_status")
 def health_check() -> str:
     """Check the operational status of the calendar server."""
     return f"Percival Khan Calendar Server operational. Workspace: {WORKSPACE_DIR}"
