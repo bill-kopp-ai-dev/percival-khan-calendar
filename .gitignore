@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+build/
+dist/
+*.egg-info/
+
+# MCP / Khal
+.nanobot/
+khal.conf
+khal.db
+data/
+*.ics
+
+# OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
