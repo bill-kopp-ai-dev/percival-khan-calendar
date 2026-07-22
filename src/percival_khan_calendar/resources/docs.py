@@ -21,7 +21,7 @@ from fastmcp import FastMCP
 # A static Markdown reference. Reading a Markdown body directly via
 # ``resources/read`` keeps the schema greppable and diffable.
 _SCHEMA_DOCUMENT = """\
-# percival-khan-calendar — schema reference
+# percival-khan-calendar — schema reference (v0.3.0)
 
 This document is the canonical technical reference for the
 ``percival-khan-calendar`` MCP server. The agent should fetch this
@@ -121,34 +121,63 @@ The integration tests are NOT in CI by default because they need
 ``khal`` installed in PATH. Run them locally after a refactor that
 touches the khal adapter or the khal.conf template.
 
+## 7.5. Prompts and resources (v0.3.0)
+
+The server registers six ``prompts.primitives`` (visible via
+``prompts/list``) and one resource (visible via ``resources/list``).
+These are *oriented* guidance for the agent, not part of the tool
+contract.
+
+Prompts:
+
+| Name | Arg | Purpose |
+|------|-----|---------|
+| ``khan_overview``                  | — | Server tour + recommended workflow |
+| ``khan_create_event_semantics``    | — | Time/alarm/recurrence field syntax |
+| ``khan_update_workflow``           | — | UID / RRULE / VALARM preservation |
+| ``khan_delete_with_confirmation``  | — | Two-call dry-run + confirm protocol |
+| ``khan_search_strategy``           | ``keyword: str``, ``scope: Literal[...]`` (default ``"summary"``) | Field-qualified search |
+| ``khan_quick_action_quick_create`` | ``user_intent: str`` | Verbatim echo + PT-BR date mapping |
+
+Resource:
+
+| URI                       | MIME              | Body                                       |
+|---------------------------|-------------------|--------------------------------------------|
+| ``khan://schema/main``    | ``text/markdown`` | This document. Read on demand. |
+
+Boot re-entrancy: ``server.main()`` constructs a fresh
+``FastMCP`` instance per invocation. Tests that need strict
+isolation should likewise call ``register_prompts`` and
+``register_resources`` against a freshly-constructed ``FastMCP``
+instance — re-using the same instance twice will log
+``Component already exists: prompt:<name>@`` but not raise (this
+is FastMCP 3.4 behaviour, not a server bug).
+
 ## 8. Where things live in the codebase
 
 ```
 src/percival_khan_calendar/
-├── constants.py        # all Final[Path] / Final[str] knobs
-├── exceptions.py       # 4 typed exceptions
-├── lifecycle.py        # setup_workspace + auto-heal
-├── security.py         # envelope_untrusted_data + argument guard
-├── server.py           # FastMCP entrypoint
-├── models.py           # Pydantic validators (PII defence)
+├── constants.py            # all Final[Path] / Final[str] knobs
+├── exceptions.py           # 4 typed exceptions
+├── lifecycle.py            # setup_workspace + auto-heal
+├── security.py             # envelope_untrusted_data + argument guard
+├── server.py               # FastMCP entrypoint (fresh instance per boot)
+├── models.py               # Pydantic validators (PII defence)
 ├── adapters/
-│   ├── khal_adapter.py     # file-level read/write + UID
-│   ├── locks.py            # workspace_lock context manager
-│   └── subprocess_runner.py # executar_comando_khal + env passing
+│   ├── khal_adapter.py         # file-level read/write + UID + canonical-Z
+│   ├── locks.py                # workspace_lock context manager
+│   └── subprocess_runner.py    # executar_comando_khal + env passing
 ├── tools/
-│   ├── create_event.py
-│   ├── delete_event.py
-│   ├── delete_event_safe.py
-│   ├── export_ics.py
-│   ├── list_calendars.py
-│   ├── list_events.py
-│   ├── search_events.py
-│   ├── status.py
-│   ├── update_event.py
-│   ├── view.py
-│   └── prompts.py          # 6 prompts (this round)
+│   ├── create_event.py         # khan_create_event
+│   ├── delete_event.py         # khan_delete_event + khan_delete_event_safe
+│   ├── list_events.py          # khan_list_events + khan_get_event + khan_search_events
+│   ├── export_ics.py           # khan_export_ics
+│   ├── status.py               # khan_get_status + khan_list_calendars
+│   ├── update_event.py         # khan_update_event
+│   ├── view.py                 # khan_view_agenda + khan_view_calendar
+│   └── prompts.py              # 6 prompts (khan_overview, …)
 └── resources/
-    └── docs.py             # 1 resource (this round)
+    └── docs.py                 # khan://schema/main (this document)
 ```
 """
 

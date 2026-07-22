@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "percival-khan-calendar"
-version = "0.2.0"
+version = "0.3.0"
 description = "Percival MCP server for local calendar management via khal"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -76,3 +76,14 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+
+# The schema Markdown body in resources/docs.py is held inside a
+# triple-quoted string literal. It intentionally uses lines longer
+# than the project width because Markdown table rows are read by
+# humans, not the lint layer. Suppress E501 / W605 there.
+[tool.ruff.lint.per-file-ignores]
+"src/percival_khan_calendar/resources/docs.py" = [
+    "E501",   # Markdown table cells can run long.
+    "W605",   # Literal ``\|`` in inline-code Markdown is not an escape.
+]
+

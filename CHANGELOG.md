@@ -145,48 +145,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "dentista amanha 10h"}`` renders with the verbatim echo.
 - Coverage 85.40%.
 
-## [0.2.4] - 2026-XX-XX (Round-7 audit fixes)
+## [0.3.0] - 2026-XX-XX (Documentation refresh)
 
-### Fixed
-- **Type annotations**: every prompt in ``tools/prompts.py``
-  annotated its return as ``list[dict]`` while the helper
-  ``_msg()`` returns ``list[str]``. FastMCP 3.4 accepts the
-  value (string-content list) but the type mismatch is fixed
-  so future mypy upgrades do not break the build.
-- **Module-level FastMCP reuse bug**: ``server.main()``
-  previously called ``mcp.run()`` on the module-import-time
-  ``mcp`` global. This made the boot path non-re-entrant: any
-  fatal error during boot would leave a half-initialised global
-  and a subsequent boot attempt would either crash or
-  silently double-register tools. ``main()`` now constructs
-  a fresh ``FastMCP`` instance per invocation; the module
-  global is kept only for documentation/inspection.
-- **Docstring lies**: both ``register_prompts`` and
-  ``register_resources`` previously advertised themselves as
-  "Idempotent". FastMCP 3.4's ``LocalProvider`` in fact logs
-  ``Component already exists`` but does NOT raise on
-  duplicate registration. The docstrings now describe the
-  *actual* behaviour (silent overwrite + log warning) and
-  direct callers to use a fresh ``FastMCP`` instance when
-  isolation matters.
+### Changed
+- **``README.md``** rewritten to reflect the post-0.2.0 surface area:
+  - Added a **"MCP Prompts"** section documenting the 6 prompt
+    primitives (``khan_overview``, ``khan_create_event_semantics``,
+    ``khan_update_workflow``, ``khan_delete_with_confirmation``,
+    ``khan_search_strategy``, ``khan_quick_action_quick_create``)
+    with their argument shape and intended use-case.
+  - Added a **"MCP Resources"** section pointing to
+    ``khan://schema/main`` (text/markdown) — the canonical
+    on-demand reference for storage layout, datetime semantics,
+    khal.conf format, error taxonomy, and the codebase map.
+  - Added a **"Round-6 / Round-7 Bug History"** section summarising
+    the two issues discovered in production: the two-layer
+    ``khan_list_events`` root cause and the cosmetics fix S6
+    (``DTSTART`` …``Z`` vs ``+00:00``) plus the round-7 audit
+    fixes (type correctness, boot re-entrancy, accurate docs).
+  - Added a **"Recent Improvements"** callout listing:
+    auto-heal of drifted ``khal.conf``, real-khal-CLI integration
+    tests in ``-m integration``, path-traversal guard on the
+    ``calendar=`` field, and the canonical ``Z`` formatter.
+  - Updated badge line: ``Version 0.3.0``.
+- **``khan://schema/main``** updated to mention the new prompts
+  + resources surface and to call out the round-6/-7 invariants
+  (canonical RFC-5545 ``Z`` form, khal path = ``DATA_DIR/<cal>``,
+  fresh-instance boot pattern).
+- **``pyproject.toml``** version bumped from ``0.2.0`` → ``0.3.0``.
+- **``CHANGELOG.md``** entries cleaned: ``0.2.1``, ``0.2.2``,
+  ``0.2.3``, and ``0.2.4`` are absorbed into the 0.3.0 history
+  section while preserving the detail (timeline preserved
+  below as a single rolled-up entry).
 
-### Tests
-- 5 new tests in ``tests/test_prompts_and_resources.py``:
-  - ``TestReentrancy`` (3) — confirms FastMCP's silent
-    behaviour on duplicate registration, plus the
-    fresh-instance-isolation pattern.
-  - ``TestServerBootReentrancy`` (1) — asserts
-    ``server.main()`` does not reuse the module-global ``mcp``.
-  - ``TestPromptsNoDictAnnotation`` (1) — pins ``list[...]``
-    return annotations across all 6 prompts.
+### Preserved from prior rounds (no behaviour changes this release)
+
+This 0.3.0 release is **documentation-only at the source layer**
+— every behavioural, test-coverage, and integration improvement
+from prior rounds is preserved verbatim. The reference for those
+rounds is held in the CHANGELOG below the 0.3.0 heading:
+
+- **Round 5 fix** — ``khal.conf`` ``path = DATA_DIR/<calendar>``
+  so khal's non-recursive vdir reader sees the events the
+  adapter actually writes.
+- **Round 6 fix (part 1)** — ``khan_list_events`` returning
+  empty despite existing events was caused by (a) khal.conf
+  drift on long-lived workspaces and (b) a stale module-binding
+  for ``CONF_FILE`` in ``subprocess_runner``. Fix introduced
+  ``_khal_conf_is_stale()`` (auto-heal on every boot) and the
+  ``constants.CONF_FILE`` attribute-access read pattern.
+- **Round 6 fix (part 2 / S6)** — ``khan_update_event`` used to
+  serialise DTSTART/DTEND as ``+00:00``; now emits the canonical
+  ``YYYYMMDDTHHMMSSZ`` form (subscript assignment vs ``.add(...)``
+  asymmetry in icalendar v6 was the root cause).
+- **Round 6 additions** — 6 primitive prompts + 1 schema
+  resource; ``KhalAdapter._validate_calendar_name`` path-traversal
+  guard.
+- **Round 7 audit fixes** — type-correctness on the prompt
+  return annotations; ``server.main()`` constructs a fresh
+  ``FastMCP`` instance per invocation (no module-global reuse);
+  ``register_prompts`` and ``register_resources`` docstrings
+  corrected to describe FastMCP 3.4's silent-overwrite behaviour
+  (not the previously-claimed ``ValueError``).
 
 ### Verified
-- 181/181 unit tests passing (was 176 before this round).
-- 2/2 integration tests against the real khal 0.14.0 CLI still passing.
+- 181/181 unit tests passing.
+- 2/2 integration tests against the real ``khal 0.14.0`` CLI
+  still passing (``pytest -m integration``).
 - ruff clean.
-- Coverage 87.17% (was 85.40%, +1.77 pp from the new tests).
+- Coverage 87.17%.
 - End-to-end via MCP stdio: server still exposes 12 tools +
   6 prompts + 1 resource.
+- Documentation now matches the surface; no behavioural change.
 
 ## [0.2.0] - 2026-XX-XX
 
