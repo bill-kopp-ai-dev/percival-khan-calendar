@@ -54,7 +54,8 @@ class EventMatch:
 
     def format(self, *, fmt: Literal["plain", "compact"] = "plain") -> str:
         """Return a single-line representation for the LLM."""
-        return f"[{self.uid}] {self.summary} ({self.filepath.name})"
+        location = self.filepath.name if self.filepath else "<in-memory>"
+        return f"[{self.uid}] {self.summary} ({location})"
 
 
 # ---------------------------------------------------------------------------
