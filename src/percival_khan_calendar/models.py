@@ -8,6 +8,7 @@ through ``StoredEvent`` validation when reading from disk.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -21,6 +22,25 @@ from .constants import (
     MAX_SHORT_STR_LEN,
     MAX_TITLE_LEN,
 )
+
+# Strip ASCII control characters (0x00-0x1F, except whitespace tab/nl,
+# and DEL) from string inputs to defeat shell/control injection via
+# payload bytes that Pydantic's plain ``str`` would not otherwise filter.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _sanitize_free_text(v: str) -> str:
+    """Strip control characters and normalize unicode.
+
+    Returns the cleaned string. Empty string after stripping is
+    considered valid; Pydantic field length constraints already
+    enforce min/max.
+    """
+    if not isinstance(v, str):
+        v = str(v)
+    cleaned = _CONTROL_CHARS_RE.sub("", v)
+    cleaned = unicodedata.normalize("NFC", cleaned)
+    return cleaned
 
 
 class ListEventsInput(BaseModel):
@@ -42,6 +62,7 @@ class ListEventsInput(BaseModel):
     @field_validator("start_date", "range_or_end")
     @classmethod
     def _no_injection(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v.startswith("-") or "--" in v:
             raise ValueError(
                 "Inputs starting with '-' or containing '--' are rejected "
@@ -62,6 +83,7 @@ class SearchEventsInput(BaseModel):
     @field_validator("query")
     @classmethod
     def _no_injection(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v.startswith("-") or "--" in v:
             raise ValueError("Query starting with '-' or containing '--' is rejected.")
         return v
@@ -81,6 +103,7 @@ class CreateEventInput(BaseModel):
     @field_validator("alarm")
     @classmethod
     def _validate_alarm(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v and not re.match(ALLOWED_ALARM_PATTERN, v):
             raise ValueError(f"Invalid alarm format '{v}'. Expected like '15m', '1h', '2d'.")
         return v
@@ -88,6 +111,7 @@ class CreateEventInput(BaseModel):
     @field_validator("recurrence")
     @classmethod
     def _validate_recurrence(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v and v.lower() not in ALLOWED_RECURRENCE_VALUES:
             raise ValueError(
                 f"Invalid recurrence '{v}'. Allowed: {sorted(ALLOWED_RECURRENCE_VALUES)}"
@@ -97,6 +121,7 @@ class CreateEventInput(BaseModel):
     @field_validator("start", "end", "location", "description", "title")
     @classmethod
     def _reject_argument_injection(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v and (v.startswith("-") or "--" in v):
             raise ValueError(
                 "Inputs starting with '-' or containing '--' are rejected "
@@ -116,10 +141,16 @@ class UpdateEventInput(BaseModel):
     new_location: str = Field(default="", max_length=MAX_LOCATION_LEN)
 
     @field_validator(
-        "old_term", "new_title", "new_start", "new_end", "new_description", "new_location"
+        "old_term",
+        "new_title",
+        "new_start",
+        "new_end",
+        "new_description",
+        "new_location",
     )
     @classmethod
     def _reject_argument_injection(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v and (v.startswith("-") or "--" in v):
             raise ValueError("Inputs starting with '-' or containing '--' are rejected.")
         return v
@@ -133,6 +164,7 @@ class DeleteEventInput(BaseModel):
     @field_validator("exact_term")
     @classmethod
     def _reject_argument_injection(cls, v: str) -> str:
+        v = _sanitize_free_text(v)
         if v.startswith("-") or "--" in v:
             raise ValueError("Terms starting with '-' or containing '--' are rejected.")
         return v
@@ -148,6 +180,11 @@ class ViewCalendarInput(BaseModel):
     """Validate inputs for ``khan_view_calendar``."""
 
     reference_month: str = Field(default="today", max_length=MAX_SHORT_STR_LEN)
+
+    @field_validator("reference_month")
+    @classmethod
+    def _sanitize_reference_month(cls, v: str) -> str:
+        return _sanitize_free_text(v)
 
 
 __all__ = [

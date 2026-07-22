@@ -73,9 +73,25 @@ class KhalAdapter:
 
     def __init__(self, data_dir: Path | None = None) -> None:
         self._data_dir = data_dir or constants.DATA_DIR
+        # Track files we ignored on read so the agent (and a future
+        # ``khan_get_status`` enhancement) can surface the count instead
+        # of returning silently truncated results.
+        self._skipped_ics: list[Path] = []
 
     def __repr__(self) -> str:
         return f"KhalAdapter(data_dir={self._data_dir!r})"
+
+    @property
+    def skipped_ics(self) -> tuple[Path, ...]:
+        """Files that were ignored because parsing failed.
+
+        Snapshot at the time of the call. Useful for test assertions
+        and surface area to be added to ``khan_get_status``.
+        """
+        return tuple(self._skipped_ics)
+
+    def reset_skipped_counter(self) -> None:
+        self._skipped_ics.clear()
 
     # ---- Reads -----------------------------------------------------------
 
@@ -86,7 +102,12 @@ class KhalAdapter:
             try:
                 cal = Calendar.from_ical(ics_path.read_bytes())
             except Exception:
+                # Surfaces in logs AND in the per-adapter counter.
+                # We refuse to fail the entire query for one bad file;
+                # instead we record it so the agent can be told.
                 logger.warning("Skipping malformed ICS: %s", ics_path)
+                if ics_path not in self._skipped_ics:
+                    self._skipped_ics.append(ics_path)
                 continue
             for ev in cal.walk("VEVENT"):
                 yield ics_path, cal, ev
@@ -109,7 +130,9 @@ class KhalAdapter:
             raise KhanValidationError(
                 f"Invalid `by` argument: '{by}'. Allowed: {list(self._SEARCH_FIELDS)}."
             )
-        term_l = term.lower()
+        # Trim term so accidental whitespace does not break exact-ish
+        # substring matching. Pydantic already strips control chars.
+        term_l = term.strip().lower()
         matches: list[EventMatch] = []
         for ics_path, cal, ev in self._iter_event_files():
             summary = str(ev.get("summary", "")).lower()

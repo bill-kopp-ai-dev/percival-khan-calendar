@@ -85,3 +85,9 @@ ENABLE_LOCK: Final[bool] = os.environ.get("KHAN_ENABLE_LOCK", "true").lower() in
     "true",
     "yes",
 )
+
+# Export limit: refuse to build an export bigger than this many bytes
+# to bound memory use (and prevent a single huge calendar from OOM-ing
+# the agent's runtime). 16 MiB is enough for tens of thousands of
+# typical events.
+EXPORT_MAX_BYTES: Final[int] = int(os.environ.get("KHAN_EXPORT_MAX_BYTES", str(16 * 1024 * 1024)))

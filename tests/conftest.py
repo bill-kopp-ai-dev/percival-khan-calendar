@@ -10,12 +10,16 @@ from percival_khan_calendar import constants
 
 
 @pytest.fixture
-def isolated_workspace(monkeypatch, tmp_path: Path) -> Path:
+def isolated_workspace(monkeypatch, tmp_path: Path):
     """Run each test against a temporary workspace.
 
     Mutates module-level constants so subprocess invocations don't touch
-    the real $HOME/.nanobot/workspace/khalCalendar. Locking is disabled
-    to avoid issues in CI/sandbox environments.
+    the real $HOME/.nanobot/workspace/khalCalendar. **Also bootstraps
+    the workspace** (via ``setup_workspace``) so the temporary dir
+    has a valid ``khal.conf`` and ``data/`` directory — without this,
+    tests that *don't* mock ``subprocess`` would fall back to the real
+    production workspace and pollute it. Locking is disabled to
+    avoid issues in CI/sandbox environments.
     """
     ws = tmp_path / "khalCalendar"
     data = ws / "data"
@@ -29,5 +33,10 @@ def isolated_workspace(monkeypatch, tmp_path: Path) -> Path:
     monkeypatch.setattr(constants, "DB_FILE", db)
     monkeypatch.setattr(constants, "LOCK_FILE", lock)
     monkeypatch.setattr(constants, "ENABLE_LOCK", False)
+    # Routing through attribute access means ``setup_workspace`` reads
+    # the monkeypatched values; this also ensures WORKSPACE_DIR's
+    # parent exists.
+    from percival_khan_calendar.lifecycle import setup_workspace
 
+    setup_workspace()
     yield ws

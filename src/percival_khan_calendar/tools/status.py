@@ -11,7 +11,7 @@ from .. import constants
 from ..adapters.locks import workspace_lock
 from ..adapters.subprocess_runner import executar_comando_khal
 from ..exceptions import KhanError
-from ..security import envelope_untrusted_data
+from ..security import envelope_untrusted_data  # noqa: F401
 
 logger = logging.getLogger("percival-khan-calendar.tools.status")
 
@@ -88,6 +88,16 @@ def register_status_tools(mcp: FastMCP) -> None:
                     sub = Calendar.from_ical(ics.read_bytes())
                     for ev in sub.walk():
                         cal.add_component(ev)
+                body = cal.to_ical()
+                # Capture the event count while still holding the lock
+                # so we don't recount after the write succeeds.
+                event_count = sum(1 for _ in cal.walk())
+                if len(body) > constants.EXPORT_MAX_BYTES:
+                    return (
+                        f"[recoverable_by_agent=false] export too large: "
+                        f"{len(body)} bytes exceeds "
+                        f"EXPORT_MAX_BYTES={constants.EXPORT_MAX_BYTES}."
+                    )
                 # Write atomically to avoid leaving an empty .ics on
                 # mid-flight failure. _atomic_write_ics fsync's both
                 # file and parent directory for durability.
@@ -100,4 +110,6 @@ def register_status_tools(mcp: FastMCP) -> None:
             # to the agent. Just the exception class is enough to debug.
             logger.exception("khan_export_ics failed")
             return f"[recoverable_by_agent=false] export failed: {type(exc).__name__}"
-        return f"Exported to {output}."
+        # Return only the basename (no absolute path leak) and an
+        # event count so the agent sees something meaningful.
+        return f"Exported {event_count} events to '{output.name}'."
