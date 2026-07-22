@@ -60,6 +60,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 2/2 integration tests against the real `khal 0.14.0` CLI passing.
 - ruff clean.
 
+## [0.2.2] - 2026-XX-XX (Round-6 follow-up: S6)
+
+### Fixed
+- **`khan_update_event` re-serialized DTSTART/DTEND as `2026-07-23
+  12:30:00+00:00` instead of the canonical RFC-5545 `20260723T123000Z`
+  after the round-5 vdir fix.** Both are valid UTC datetime
+  representations accepted by every RFC-5545 parser, but the
+  inconsistency broke interop with calendar clients importing
+  exported `.ics`. The cause was that ``icalendar`` v6 picks its
+  serializer (``Z`` vs ``+00:00``) by the *type* of the property
+  object on the Event, and ``ev["dtstart"] = value`` (subscript
+  assignment) was always assigning a freshly-built ``vDDDTypes`` that
+  the serializer rendered as ``+00:00``. Switching to ``.add(...)``
+  while clearing pre-existing properties via ``del ev[upper_key]``
+  makes both create and update paths emit the same canonical form.
+- Replaced the round-6 ``update_event`` "mutate in place" approach
+  with "build a brand-new Event from primitives, copy across
+  RRULE/VALARM/X-*-properties from the on-disk Event" so neither
+  DST nor datetime subclasses can flip the serializer back to
+  ``+00:00``. This is a defensive rewrite, not a behavior change:
+  the user-observable contract (UID, RRULE, fields) is identical.
+
+### Added
+- New helper ``adapters/khal_adapter.py::_to_utc_z`` that:
+  - returns the same ``datetime`` unchanged if it already has
+    ``tzinfo=timezone.utc`` (cheap happy path);
+  - promotes naive datetimes to local time and converts to UTC;
+  - converts tz-aware-but-non-UTC datetimes (e.g. SP -03) to UTC
+    preserving wall-clock time.
+- ``tests/test_security_round6.py`` pinpoints the canonical-form
+  output via a single regex ``DTSTART|DTEND`` matches
+  ``^(\d{8}T\d{6})Z$``. Both create and update are tested; the
+  buggy ``+00:00`` form is asserted *absent* on the update path.
+
+### Verified
+- 158/158 unit tests passing (was 153 before S6).
+- 2/2 integration tests against the real khal 0.14.0 CLI still passing.
+- ruff clean.
+
 ## [0.2.0] - 2026-XX-XX
 
 ### Added

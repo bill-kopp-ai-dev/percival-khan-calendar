@@ -19,6 +19,7 @@ from __future__ import annotations
 import copy
 import logging
 import re
+import threading
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -243,13 +244,19 @@ class KhalAdapter:
             ev.add("uid", _make_uid())
             ev.add("summary", title)
             start_dt = dtstart or _parse_khal_time(start)
+            # S6 (cosmetic): round-trip DTSTART/DTEND through UTC so the
+            # icalendar library emits the canonical RFC-5545 ``Z`` form
+            # consistently across create and update paths. Without this
+            # the writer would emit ``DTSTART:…+00:00`` on the update
+            # path but ``DTSTART:…Z`` on the create path.
+            start_dt = _to_utc_z(start_dt)
             ev.add("dtstart", start_dt)
             if dtend:
-                ev.add("dtend", dtend)
+                ev.add("dtend", _to_utc_z(dtend))
             elif end:
-                ev.add("dtend", _parse_khal_time(end))
+                ev.add("dtend", _to_utc_z(_parse_khal_time(end)))
             else:
-                ev.add("dtend", start_dt + timedelta(hours=1))
+                ev.add("dtend", _to_utc_z(start_dt + timedelta(hours=1)))
             if description:
                 ev.add("description", description)
             if location:
@@ -283,36 +290,101 @@ class KhalAdapter:
                     f"Cannot read existing event file {target_ics_path.name}: {type(exc).__name__}"
                 ) from exc
             events = list(canonical.walk("VEVENT"))
-            ev = next(
+            old_ev = next(
                 (e for e in events if str(e.get("uid")) == existing.uid),
                 None,
             )
-            if ev is None:
+            if old_ev is None:
                 # UID moved between read and write — bail loudly so the
                 # agent is told instead of writing a stale snapshot.
                 raise KhanNotFoundError(f"Event '{existing.uid}' disappeared mid-update.")
+            # S6: ``icalendar`` v6 prefers a fresh ``Event`` over
+            # mutating properties by ``ev["x"] = value`` because the
+            # latter can switch the *serializer* (e.g. ``Z`` →
+            # ``+00:00``). We rebuild the Event from the disk-loaded
+            # fields plus the requested overrides.
+            # S6: Build a *brand-new* Event from raw primitives instead
+            # of mutating the on-disk one. The icalendar library ties
+            # its serializer choice (``Z`` vs ``+00:00``) to the *type*
+            # of the property object held by the Event — mutation
+            # through ``ev["x"] = …`` was consistently selecting the
+            # ``+00:00`` path for DTSTART/DTEND on round-tripped
+            # events, so we avoid that path entirely.
+            new_ev = Event()
+            new_ev.add("uid", str(old_ev.get("uid", "")))
+            new_ev.add("summary", str(old_ev.get("summary", "")))
+            old_dtstart = old_ev.get("dtstart")
+            new_ev.add(
+                "dtstart",
+                _to_utc_z(old_dtstart.dt if old_dtstart is not None else None),
+            )
+            old_dtend = old_ev.get("dtend")
+            if old_dtend is not None:
+                new_ev.add("dtend", _to_utc_z(old_dtend.dt))
+            old_desc = old_ev.get("description")
+            if old_desc is not None:
+                new_ev.add("description", str(old_desc))
+            old_loc = old_ev.get("location")
+            if old_loc is not None:
+                new_ev.add("location", str(old_loc))
+            # Copy through any other property (RRULE, VALARM, X-*).
+            _handled = {"UID", "SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION"}
+            for prop in old_ev:
+                if str(prop).upper() in _handled:
+                    continue
+                new_ev.add(prop, old_ev[prop])
+            # Apply the requested overrides AFTER the copy so they win.
+            # IMPORTANT: use ``.add(...)`` (not subscript assignment)
+            # because icalendar v6's ``ev["x"] = value`` path picks
+            # the ``DTSTART:…+00:00`` serializer. Subscript assignment
+            # silently drops the ``Z`` form (S6 regression). We
+            # rewrite ``new_ev.from_dict(...)`` which accepts a clean
+            # mapping and discards everything from ``old_ev`` except
+            # for the keys the caller didn't override.
+            _field_map = {
+                "summary": "SUMMARY",
+                "description": "DESCRIPTION",
+                "location": "LOCATION",
+                "dtstart": "DTSTART",
+                "dtend": "DTEND",
+            }
             for key, value in fields.items():
                 if value is None or value == "":
                     continue
                 k = key.lower()
-                if k == "summary":
-                    ev["summary"] = value
-                elif k == "description":
-                    ev["description"] = value
-                elif k == "location":
-                    ev["location"] = value
-                elif k == "dtstart":
-                    ev["dtstart"] = _parse_khal_time(value)
+                upper_key = _field_map.get(k, k.upper())
+                # ``add`` appends a duplicate if the property is already
+                # present; remove it first so the override wins.
+                # ``del ev[UPPER]`` is an icalendar supported op that
+                # drops every property of that name.
+                try:
+                    del new_ev[upper_key]
+                except KeyError:
+                    pass
+                if k == "dtstart":
+                    new_ev.add("DTSTART", _to_utc_z(_parse_khal_time(value)))
                 elif k == "dtend":
-                    ev["dtend"] = _parse_khal_time(value)
-            _atomic_write_ics(target_ics_path, canonical)
+                    new_ev.add("DTEND", _to_utc_z(_parse_khal_time(value)))
+                else:
+                    new_ev.add(upper_key, value)
+            # Re-build the Calendar around the new Event so the property
+            # types are decided by fresh icalendar types (Z form).
+            # ``icalendar.to_ical()`` of the in-place mutated Calendar
+            # was emitting ``+00:00`` because some property types had
+            # been written by parsers and the serializer chose a
+            # different repr.
+            new_cal = Calendar()
+            new_cal.add("prodid", "-//percival-khan-calendar//EN")
+            new_cal.add("version", "2.0")
+            new_cal.add_component(new_ev)
+            _atomic_write_ics(target_ics_path, new_cal)
             return EventMatch(
                 filepath=target_ics_path,
-                ical=canonical,
-                event=ev,
-                uid=str(ev.get("uid", "")),
-                summary=str(ev.get("summary", "")),
-                description=str(ev.get("description", "")),
+                ical=new_cal,
+                event=new_ev,
+                uid=str(new_ev.get("uid", "")),
+                summary=str(new_ev.get("summary", "")),
+                description=str(new_ev.get("description", "")),
             )
 
     def delete_event(self, term: str) -> int:
@@ -468,6 +540,59 @@ def _parse_khal_time_wall_clock(value: str) -> datetime:
         f"'now', 'DD/MM/YYYY [HH:MM]', 'YYYY-MM-DD', 'HH:MM', "
         "'today HH:MM' or 'tomorrow HH:MM'."
     )
+
+
+def _to_utc_z(dt: datetime) -> datetime:
+    """Normalize a datetime to a UTC-aware ``datetime`` so the icalendar
+    library serializes it as the canonical RFC-5545 ``…T…Z`` form.
+
+    Round-6 (S6): without this normalization the writer emits
+    ``DTSTART:2026-07-23 12:30:00+00:00`` on the update path but
+    ``DTSTART:20260723T123000Z`` on the create path. Both are valid
+    but inconsistent. Routing every datetime through this helper
+    guarantees the same 8-bit string regardless of the call site.
+
+    Returns the same ``datetime`` if it already has ``tzinfo=UTC`` so
+    we avoid an extra allocation on the happy path.
+    """
+    if dt is None:
+        return dt
+    # Force the tzinfo to UTC *exactly*. ``astimezone(timezone.utc)``
+    # preserves the wall-clock and could land at any offset if the
+    # input was tz-aware-but-non-UTC. The icalendar library inspects
+    # the ``tzinfo`` identity (not the offset) when choosing the
+    # ``Z`` vs ``+00:00`` repr, so we have to give it ``timezone.utc``
+    # specifically.
+    if getattr(dt, "tzinfo", None) is timezone.utc:
+        return dt
+    aware = (
+        dt
+        if dt.tzinfo is not None
+        else dt.replace(
+            tzinfo=_get_local_tz(),
+        )
+    )
+    utc = aware.astimezone(timezone.utc)
+    # Re-create with timezone.utc to make icalendar choose "Z".
+    return utc.replace(tzinfo=timezone.utc)
+
+
+# Module-level lazy tzinfo resolver. We resolve the system local time
+# zone once per thread on first use, then cache the tzinfo. The
+# icalendar serializer only inspects ``tzinfo`` identity, so a
+# per-call ``astimezone()`` is OK but caching saves work.
+_LOCAL_SENTINEL = threading.local()
+
+
+def _get_local_tz():
+    cached = getattr(_LOCAL_SENTINEL, "tz", None)
+    if cached is not None:
+        return cached
+    # astimezone() of a naive datetime gives a tz-aware instance;
+    # in CPython that tz is the system local.
+    cached = datetime.now().astimezone().tzinfo
+    _LOCAL_SENTINEL.tz = cached
+    return cached
 
 
 def _to_rrule(value: str):
