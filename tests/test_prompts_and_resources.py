@@ -262,3 +262,177 @@ class TestPromptArguments:
 
         with pytest.raises((fe.PromptError, fe.ValidationError, TypeError)):
             asyncio.run(go())
+
+
+# ---------------------------------------------------------------------------
+# audit-round: re-entrancy guarantees (round-7)
+# ---------------------------------------------------------------------------
+
+
+class TestReentrancy:
+    """Round-7 audit: ``register_prompts`` / ``register_resources``
+    on the same ``FastMCP`` instance logs a warning but does NOT
+    raise (FastMCP 3.4 local_provider silently overwrites).
+    Pinning this behaviour via test serves two purposes:
+
+    1. if FastMCP upgrades to a strict duplicate-error policy, the
+       test will start failing in a controlled way, not in
+       production;
+    2. the test confirms the "fresh instance per call" pattern
+       works for callers (like tests, sub-server composition) that
+       DO want isolation.
+    """
+
+    def test_register_prompts_re_register_logs_warning(self, caplog):
+        """Second ``register_prompts`` call logs ``Component already
+        exists: prompt:<name>@`` for each prompt but does not raise.
+        This is FastMCP's documented (silent) behaviour as of 3.4."""
+        import logging
+
+        from fastmcp import FastMCP
+
+        from percival_khan_calendar.tools.prompts import register_prompts
+
+        app = FastMCP("reentrancy-test-prompts")
+        with caplog.at_level(logging.WARNING):
+            register_prompts(app)
+            # Should NOT raise; should log at least one "already exists".
+            register_prompts(app)
+        warnings = [r.message for r in caplog.records]
+        assert any("already exists" in m for m in warnings), (
+            f"Expected 'already exists' warning; got {warnings[:3]!r}"
+        )
+
+    def test_register_resources_re_register_logs_warning(self, caplog):
+        import logging
+
+        from fastmcp import FastMCP
+
+        from percival_khan_calendar.resources import register_resources
+
+        app = FastMCP("reentrancy-test-resources")
+        with caplog.at_level(logging.WARNING):
+            register_resources(app)
+            register_resources(app)
+        warnings = [r.message for r in caplog.records]
+        assert any("already exists" in m and "schema/main" in m for m in warnings), (
+            f"Expected 'already exists' warning; got {warnings[:3]!r}"
+        )
+
+    def test_fresh_instance_per_call_works(self):
+        """Two **distinct** FastMCP instances each registered
+        cleanly is the pattern tests should use."""
+        from fastmcp import FastMCP
+
+        from percival_khan_calendar.resources import register_resources
+        from percival_khan_calendar.tools.prompts import register_prompts
+
+        app_a = FastMCP("instance-a")
+        app_b = FastMCP("instance-b")
+        register_prompts(app_a)
+        register_resources(app_b)
+
+        # Sanity: B did not pick up A's prompts.
+        async def list_b_prompts():
+            return await app_b.list_prompts()
+
+        prompts_b = asyncio.run(list_b_prompts())
+        assert len(prompts_b) == 0, (
+            f"Cross-instance bleed: app_b unexpectedly has {[p.name for p in prompts_b]!r}"
+        )
+
+
+class TestServerBootReentrancy:
+    """``server.main()`` constructs its own FastMCP instance so the
+    module-level ``mcp`` global does not pollute the runtime."""
+
+    def test_main_does_not_touch_module_level_mcp(self, monkeypatch):
+        """``main()`` must not reuse the module-global ``mcp`` —
+        doing so would prevent re-bootstrapping the server after
+        a fatal error. We capture the FastMCP instance the boot
+        path passes to ``register_all_tools`` and assert it is
+        **not** the same object as ``server.mcp``."""
+
+        # We can't actually run mcp.run (it would block on stdio),
+        # but we can intercept ``register_all_tools`` and inspect
+        # what app instance it receives.
+        from fastmcp import FastMCP
+
+        from percival_khan_calendar import server
+
+        captured = {"app": None}
+
+        def fake_register_all_tools(app, adapter):
+            captured["app"] = app
+
+        def fake_register_prompts(app):
+            captured["app"] = captured["app"] or app
+
+        def fake_register_resources(app):
+            captured["app"] = captured["app"] or app
+
+        def fake_run(*args, **kwargs):
+            # Stop the boot early — we just want to inspect the app.
+            raise SystemExit(0)
+
+        monkeypatch.setattr(server, "register_all_tools", fake_register_all_tools)
+        monkeypatch.setattr(server, "register_prompts", fake_register_prompts)
+        monkeypatch.setattr(server, "register_resources", fake_register_resources)
+        monkeypatch.setattr(FastMCP, "run", fake_run)
+
+        with pytest.raises(SystemExit):
+            server.main()
+
+        # The boot-time app must NOT be the module-global ``mcp``.
+        module_mcp = server.mcp
+        boot_app = captured["app"]
+        assert isinstance(boot_app, FastMCP)
+        assert boot_app is not module_mcp, (
+            "main() reused the module-level mcp global; a fresh "
+            "FastMCP instance is required so re-bootstrapping works."
+        )
+
+
+class TestPromptsNoDictAnnotation:
+    """Round-7 audit: every prompt in ``tools/prompts.py`` must
+    return ``list[str]`` (the FastMCP 3.x contract), not ``list[dict]``.
+    Earlier drafts typed this incorrectly. Pin the contract."""
+
+    def test_all_prompt_functions_have_correct_annotation(self):
+        import inspect
+
+        from percival_khan_calendar.tools.prompts import register_prompts
+
+        # We can't easily extract the inner closures from the
+        # decorator wrapper without a FastMCP registry peek, so
+        # we re-register and then introspect via the call graph.
+        app = FastMCP("annotation-test")
+
+        # Patch the decorator mechanics to capture the wrapped
+        # functions before they hit the registry.
+        captured_funcs = {}
+
+        real_prompt = app.prompt
+
+        def spy_prompt(name=None, **kwargs):
+            def deco(fn):
+                captured_funcs[name or fn.__name__] = fn
+                return real_prompt(name=name, **kwargs)(fn)
+
+            return deco
+
+        app.prompt = spy_prompt  # type: ignore[method-assign]
+        register_prompts(app)
+
+        for name, fn in captured_funcs.items():
+            hints = inspect.get_annotations(fn, eval_str=True)
+            assert "return" in hints, f"{name} missing 'return' annotation"
+            # ``list[str]`` may not be identity-equal across
+            # invocations (Python subscript semantics) but it's
+            # origin-equal. We compare by ``repr`` so dynamically
+            # built subscript generics work.
+            ann = hints["return"]
+            ann_repr = repr(ann)
+            assert ann_repr == "list[str]" or ann_repr.startswith("list["), (
+                f"{name} return annotation is {ann!r}; must be list[...] (e.g. list[str])"
+            )

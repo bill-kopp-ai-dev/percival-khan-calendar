@@ -39,18 +39,28 @@ mcp = FastMCP("percival-khan-calendar")
 
 
 def main() -> None:
-    """Boot the MCP server over stdio."""
+    """Boot the MCP server over stdio.
+
+    We construct a *fresh* ``FastMCP`` instance inside ``main``
+    rather than relying on the module-level ``mcp`` global so the
+    process is fully re-entrant: callers can ``import server``
+    safely without polluting the registry of a future invocation.
+    The module-level ``mcp`` is kept for documentation /
+    inspection (``fastmcp dev`` style loaders); production boot
+    always uses the local instance.
+    """
     logger.info("Booting Percival Khan Calendar MCP Server...")
     try:
         setup_workspace()
     except OSError as exc:
         logger.error("Workspace bootstrap failed: %s", exc)
         raise
+    boot_app = FastMCP("percival-khan-calendar")
     adapter = KhalAdapter()
-    register_all_tools(mcp, adapter)
-    register_prompts(mcp)
-    register_resources(mcp)
-    mcp.run(transport="stdio")
+    register_all_tools(boot_app, adapter)
+    register_prompts(boot_app)
+    register_resources(boot_app)
+    boot_app.run(transport="stdio")
 
 
 if __name__ == "__main__":

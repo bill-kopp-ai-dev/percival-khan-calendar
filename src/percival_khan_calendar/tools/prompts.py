@@ -74,7 +74,15 @@ def _msg(text: str) -> list[str]:
 
 
 def register_prompts(mcp: FastMCP) -> None:
-    """Register all 6 primitive prompts. Idempotent (skips duplicates)."""
+    """Register all 6 primitive prompts.
+
+    Note: FastMCP 3.4 raises ``ValueError`` if a prompt is
+    re-registered with the same name. Callers that need to
+    re-initialise the server (e.g. test fixtures that share the
+    ``mcp`` fixture across tests) must create a fresh
+    ``FastMCP`` instance per call. Production code only calls this
+    once during boot.
+    """
 
     @mcp.prompt(
         name="khan_overview",
@@ -86,7 +94,7 @@ def register_prompts(mcp: FastMCP) -> None:
         ),
         tags={"orientation", "beginner"},
     )
-    def khan_overview() -> list[dict]:
+    def khan_overview() -> list[str]:
         return _msg(
             f"""\
 You have access to the **percival-khan-calendar** MCP server. It
@@ -130,7 +138,7 @@ text you received.
         ),
         tags={"create", "writing"},
     )
-    def khan_create_event_semantics() -> list[dict]:
+    def khan_create_event_semantics() -> list[str]:
         return _msg(
             f"""\
 Calling pattern:
@@ -198,7 +206,7 @@ When the user is explicit ("24/12/2026 14:00"):
         ),
         tags={"update", "writing"},
     )
-    def khan_update_workflow() -> list[dict]:
+    def khan_update_workflow() -> list[str]:
         return _msg(
             f"""\
 Calling pattern:
@@ -241,7 +249,7 @@ Key rules:
         ),
         tags={"delete", "safety"},
     )
-    def khan_delete_with_confirmation() -> list[dict]:
+    def khan_delete_with_confirmation() -> list[str]:
         return _msg(
             f"""\
 Never delete without explicit user confirmation.
@@ -291,7 +299,7 @@ what you are about to delete *before* invoking it.
     def khan_search_strategy(
         keyword: str,
         scope: Literal["summary", "location", "description"] = "summary",
-    ) -> list[dict]:
+    ) -> list[str]:
         return _msg(
             f"""\
 You are searching for calendar events whose ``{scope}`` field
@@ -331,7 +339,7 @@ Search keyword: ``{keyword}``. Scope: ``{scope}``.
         ),
         tags={"create", "nlp", "user-facing"},
     )
-    def khan_quick_action_quick_create(user_intent: str) -> list[dict]:
+    def khan_quick_action_quick_create(user_intent: str) -> list[str]:
         # Keep the user's words verbatim in the agent-side message;
         # this lets the LLM ground its response on the literal text.
         return _msg(

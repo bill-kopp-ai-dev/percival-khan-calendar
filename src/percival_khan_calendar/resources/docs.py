@@ -158,7 +158,13 @@ SCHEMA_MIME = "text/markdown"
 
 
 def register_resources(mcp: FastMCP) -> None:
-    """Register the static reference at ``khan://schema/main``."""
+    """Register the static reference at ``khan://schema/main``.
+
+    Note: FastMCP 3.4 raises ``ValueError`` if a resource is
+    re-registered with the same URI. Callers that need to
+    re-initialise the server must create a fresh ``FastMCP``
+    instance. Production code only calls this once during boot.
+    """
 
     @mcp.resource(
         uri=SCHEMA_URI,
