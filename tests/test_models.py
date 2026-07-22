@@ -131,3 +131,14 @@ class TestView:
     def test_view_calendar_too_long(self):
         with pytest.raises(ValidationError):
             ViewCalendarInput(reference_month="x" * 200)
+
+    def test_view_calendar_rejects_argument_injection(self):
+        """Regression: reference_month is forwarded as a raw positional
+        arg to the `khal calendar` subprocess (view.py), so it needs the
+        same anti-argument-injection guard every other free-text field
+        has (e.g. a value like '--format' or '-a' could smuggle in a
+        recognized khal flag)."""
+        with pytest.raises(ValidationError):
+            ViewCalendarInput(reference_month="--format=x")
+        with pytest.raises(ValidationError):
+            ViewCalendarInput(reference_month="-a")

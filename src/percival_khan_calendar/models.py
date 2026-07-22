@@ -184,7 +184,13 @@ class ViewCalendarInput(BaseModel):
     @field_validator("reference_month")
     @classmethod
     def _sanitize_reference_month(cls, v: str) -> str:
-        return _sanitize_free_text(v)
+        v = _sanitize_free_text(v)
+        if v.startswith("-") or "--" in v:
+            raise ValueError(
+                "Inputs starting with '-' or containing '--' are rejected "
+                "(argument-injection shield)."
+            )
+        return v
 
 
 __all__ = [

@@ -105,7 +105,6 @@ class TestExportIcsSanitizesErrors:
     def test_export_error_returns_class_only(
         self, status_app_for_review, monkeypatch, isolated_workspace
     ):
-
         # Force a TypeError inside the export by patching the
         # Calendar constructor. The icalendar module is imported
         # lazily inside export_ics, so we patch the symbol in the

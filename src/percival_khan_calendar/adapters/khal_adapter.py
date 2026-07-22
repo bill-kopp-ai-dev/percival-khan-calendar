@@ -21,7 +21,7 @@ import logging
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -345,7 +345,7 @@ def _make_uid() -> str:
 
 
 def _parse_khal_time(value: str) -> datetime:
-    """Parse a khal-style time expression into a **timezone-aware** datetime.
+    """Parse a khal-style time expression into a **UTC-aware** datetime.
 
     Accepts:
       * ``today`` / ``tomorrow`` / ``now``
@@ -354,20 +354,33 @@ def _parse_khal_time(value: str) -> datetime:
       * ``HH:MM`` (interpreted as today's local time)
 
     Returns:
-        A ``datetime`` with ``tzinfo`` set to the system's local time
-        zone (resolved via ``datetime.now().astimezone().tzinfo``).
-        The previous implementation returned naive datetimes which the
-        ``icalendar`` library would serialize without a timezone marker
-        (``DTSTART:20260722T132341``); reading that back on a machine
-        in a *different* zone would shift the event by the offset
-        between the two zones. Adding ``tzinfo`` lets icalendar emit
-        the ``Z``/``TZID`` properly.
+        A ``datetime`` normalized to ``timezone.utc``. Wall-clock-only
+        inputs (``HH:MM``, ``today``, etc.) are first resolved against
+        the *system's* local offset and then converted to UTC so
+        ``icalendar`` always emits an unambiguous ``DTSTART:...Z``.
+        We deliberately do NOT attach the raw ``datetime.now().astimezone()
+        .tzinfo`` (a fixed-offset ``datetime.timezone``, e.g. ``-03``)
+        directly to the stored event: ``icalendar`` would serialize it
+        as ``TZID=-03``, which is not a valid IANA zone name and which
+        khal's own reader rejects with "invalid or incomprehensible
+        timezone" (verified against khal 0.14.0) — silently risking a
+        wrongly displayed time. Converting to UTC sidesteps that
+        entirely: ``Z`` is unambiguous on every machine.
 
     Raises:
         KhanValidationError: When ``value`` does not match any accepted
             format. Previously this function silently fell back to
             ``datetime.now()``, which hid bugs and produced events at
             the wrong date when the user mistyped the input.
+    """
+    return _parse_khal_time_wall_clock(value).astimezone(timezone.utc)
+
+
+def _parse_khal_time_wall_clock(value: str) -> datetime:
+    """Resolve ``value`` against the system's local wall-clock offset.
+
+    Internal helper for :func:`_parse_khal_time`; see that function's
+    docstring for why the result is converted to UTC before storage.
     """
     if not isinstance(value, str):
         raise KhanValidationError(f"Time expression must be a string, got {type(value).__name__}.")

@@ -84,3 +84,15 @@ def test_get_event_not_found(delete_app):
     fn = get_tool_fn(mcp, "khan_get_event")
     out = fn(exact_term="nothing")
     assert "No event matches" in out
+
+
+def test_get_event_ambiguous_match_is_reported_not_raised(delete_app):
+    """Regression: khan_get_event used to only catch KhanNotFoundError,
+    so an ambiguous match raised KhanAmbiguousMatchError uncaught instead
+    of returning a recoverable message to the agent."""
+    mcp, adapter = delete_app
+    adapter.write_event(title="Standup", start="today 09:00")
+    adapter.write_event(title="Standup Daily", start="today 09:00")
+    fn = get_tool_fn(mcp, "khan_get_event")
+    out = fn(exact_term="Standup")
+    assert "Ambiguous match" in out

@@ -17,7 +17,6 @@ from percival_khan_calendar.adapters.khal_adapter import KhalAdapter
 
 class TestModelsSanitizeControlChars:
     def test_start_strips_control_chars(self):
-
         from percival_khan_calendar.models import ListEventsInput
 
         # Control char (BEL = 0x07) is stripped, leaving "today".

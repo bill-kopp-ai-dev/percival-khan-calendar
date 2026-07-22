@@ -63,9 +63,9 @@ class TestDatetimeTimezoneAware:
         # when the dtstart has tzinfo. The string form must include
         # either a trailing 'Z' (for UTC) or a 'TZID=...' parameter.
         assert b"DTSTART" in body
-        assert (b"Z" in body) or (b"TZID" in body), (
-            f"DTSTART must encode timezone info, got: {body!r}"
-        )
+        assert (b"Z" in body) or (
+            b"TZID" in body
+        ), f"DTSTART must encode timezone info, got: {body!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +211,6 @@ class TestSubprocessEnv:
 class TestHelperLookup:
     def test_unknown_tool_raises_lookup_error(self):
         from fastmcp import FastMCP
-
 
         mcp = FastMCP("test")
         with pytest.raises(LookupError, match="nope"):

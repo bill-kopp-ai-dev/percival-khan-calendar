@@ -86,7 +86,7 @@ def register_delete_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
             return _validation_error_response(exc, "khan_get_event")
         try:
             m = adapter.find_event_unique(params.exact_term)
-        except KhanNotFoundError as exc:
+        except (KhanNotFoundError, KhanAmbiguousMatchError) as exc:
             return f"{exc}"
         body = (
             f"UID: {m.uid}\nSummary: {m.summary}\nDescription: "

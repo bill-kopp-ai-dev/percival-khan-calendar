@@ -123,13 +123,15 @@ def executar_comando_khal(
         try:
             # Capture raw bytes; we decode manually below so a stray
             # non-UTF-8 byte cannot crash the tool.
-            # ``env={... os.environ}`` ensures the subprocess sees the
-            # same TZ (and locale) as the parent so that a local-time
-            # timestamp we wrote (khal_adapter writes ``DTSTART`` as
-            # local time) is interpreted identically when khal reads
-            # it back. Without this, an agent running in a UTC
-            # container but consuming calendars created in SP would
-            # see times shifted by 3 hours.
+            # ``env={**os.environ, ...}`` inherits ``TZ`` from the parent
+            # so `khal list`/`agenda`/`calendar` render each UTC-stored
+            # ``DTSTART`` (see khal_adapter._parse_khal_time) back into
+            # the same local wall-clock time the agent's operator
+            # expects, rather than whatever TZ the subprocess happens
+            # to default to. ``LC_ALL`` is pinned to ``C.UTF-8``
+            # (overriding whatever locale the parent has) so stdout/
+            # stderr decoding and khal's own CLI messages are
+            # deterministic across environments.
             import os
 
             inherit_env = {**os.environ, "LC_ALL": "C.UTF-8"}

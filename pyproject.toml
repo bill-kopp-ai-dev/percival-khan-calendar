@@ -23,6 +23,12 @@ test = [
     "hypothesis>=6",
 ]
 
+[dependency-groups]
+dev = [
+    # Version pinned to match .pre-commit-config.yaml's ruff-pre-commit rev.
+    "ruff==0.6.9",
+]
+
 [project.urls]
 Homepage = "https://github.com/bill-kopp-ai-dev/percival.OS"
 Issues = "https://github.com/bill-kopp-ai-dev/percival.OS/issues"
