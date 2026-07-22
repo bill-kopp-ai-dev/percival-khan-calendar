@@ -17,18 +17,29 @@ _FENCE_CLOSE = "</calendar_untrusted_data>"
 # Newlines and CRLF that the heading sanitizer strips from titles. The
 # title is *trusted* metadata (e.g., "Created: Standup"), but if a
 # caller ever forwards user input as the title we still refuse to leak
-# a multi-line injection between the heading and the fence.
+# a multi-line injection between the heading and the fence. We strip
+# both the opening AND the closing fence from the title so the heading
+# cannot visually close the boundary either.
 _TITLE_NEWLINE_RE = re.compile(r"[\r\n]+")
 _TITLE_FENCE_OPEN_RE = re.compile(re.escape(_FENCE_OPEN), re.IGNORECASE)
+_TITLE_FENCE_CLOSE_RE = re.compile(re.escape(_FENCE_CLOSE), re.IGNORECASE)
 
 
 def _safe_title(titulo: str) -> str:
-    """Sanitize a heading so it cannot break the envelope structure."""
+    """Sanitize a heading so it cannot break the envelope structure.
+
+    Strips control characters (newlines, tabs) and any fence-like
+    substrings so a misconfigured caller cannot break out of the
+    XML envelope by injecting a multiline title.
+    """
     if not isinstance(titulo, str):
         titulo = str(titulo)
-    no_newlines = _TITLE_NEWLINE_RE.sub(" ", titulo)
-    no_fence = no_newlines
-    return no_fence.strip()
+    # Remove control chars entirely rather than turning them into
+    # spaces (avoids weird spacing visually).
+    no_controls = _TITLE_NEWLINE_RE.sub(" ", titulo)
+    no_open = _TITLE_FENCE_OPEN_RE.sub("", no_controls)
+    no_close = _TITLE_FENCE_CLOSE_RE.sub("", no_open)
+    return no_close.strip()
 
 
 def envelopar_dados_nao_confiaveis(

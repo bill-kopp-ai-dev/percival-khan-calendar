@@ -16,6 +16,10 @@ from .adapters.khal_adapter import KhalAdapter
 from .lifecycle import setup_workspace
 from .tools import register_all_tools
 
+# Configure logging at module import time so child loggers (in
+# adapters/, tools/) pick it up. ``logging.basicConfig`` is a no-op
+# if the root logger already has handlers, which keeps ``server.py``
+# re-importable under tests while still producing output for CLI use.
 logging.basicConfig(
     level=os.environ.get("KHAN_LOG_LEVEL", "INFO"),
     format="%(asctime)s %(name)s %(levelname)s %(message)s",

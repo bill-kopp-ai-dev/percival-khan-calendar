@@ -3,6 +3,8 @@
 Responsibilities:
   - Inject ``-c <CONF_FILE>`` automatically.
   - Enforce a timeout (configurable via ``KHAN_SUBPROCESS_TIMEOUT``).
+  - Decode stdout/stderr as UTF-8 (replace errors) so a stray non-ASCII
+    byte can't crash the whole tool.
   - Map subprocess failures to typed exceptions.
   - Emit structured JSON logs (``event``, ``tool``, ``returncode``,
     ``elapsed_ms``).
@@ -45,6 +47,39 @@ _IDEMPOTENT_SUBCOMMANDS: frozenset[str] = frozenset(
 )
 
 
+def _safe_log_cmd(cmd: list[str]) -> list[str]:
+    """Strip the command to a log-safe representation.
+
+    The first six positional args capture the subcommand and its
+    unchanging prefix (khal, -c, <conf>). The remaining args usually
+    carry user-supplied terms (date strings, search terms) and may
+    contain sensitive context about the user's calendar — we replace
+    them with an ellipsis so logs stay hermetic.
+    """
+    head = list(cmd[:6])
+    if len(cmd) > 6:
+        head.append("...")
+    return head
+
+
+def _decode(data: bytes | str | None) -> str:
+    """Decode subprocess output as UTF-8, replacing malformed bytes.
+
+    A bare ``text=True`` would crash with UnicodeDecodeError on a
+    stray non-UTF-8 byte coming out of khal; we want a lossy
+    conversion that returns *something* the agent can act on.
+    """
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data.strip()
+    try:
+        return data.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        logger.warning("khal emitted non-UTF-8 bytes; replacing malformed sequences")
+        return data.decode("utf-8", errors="replace").strip()
+
+
 def executar_comando_khal(
     comando: list[str],
     *,
@@ -79,23 +114,25 @@ def executar_comando_khal(
         retry_on_transient = False
 
     full_cmd = ["khal", "-c", str(CONF_FILE), *comando]
+    log_cmd = _safe_log_cmd(full_cmd)
     attempts = max_retries if retry_on_transient else 0
     last_error: KhanInfrastructureError | None = None
 
     for attempt in range(attempts + 1):
         start = time.monotonic()
         try:
+            # Capture raw bytes; we decode manually below so a stray
+            # non-UTF-8 byte cannot crash the tool.
             proc = subprocess.run(
                 full_cmd,
                 capture_output=True,
-                text=True,
                 timeout=timeout,
                 check=False,
             )
             elapsed_ms = int((time.monotonic() - start) * 1000)
             _log_event(
                 tool=tool_name,
-                cmd=full_cmd[:6],
+                cmd=log_cmd,
                 returncode=proc.returncode,
                 elapsed_ms=elapsed_ms,
                 attempt=attempt,
@@ -103,19 +140,21 @@ def executar_comando_khal(
 
             if proc.returncode == 0:
                 return KhalResult(
-                    stdout=(proc.stdout or "").strip(),
+                    stdout=_decode(proc.stdout),
                     returncode=0,
                     elapsed_ms=elapsed_ms,
                 )
 
-            stderr = (proc.stderr or "").strip()
+            stderr = _decode(proc.stderr)
             if (
                 proc.returncode == 2
                 or "Usage:" in stderr
                 or "error:" in stderr.lower()
                 or "invalid" in stderr.lower()
             ):
-                raise KhanValidationError(f"khal rejected the command: {stderr or proc.stdout}")
+                raise KhanValidationError(
+                    f"khal rejected the command: {stderr or _decode(proc.stdout)}"
+                )
 
             last_error = KhanInfrastructureError(
                 f"khal exited with code {proc.returncode}: {stderr}"
@@ -131,7 +170,7 @@ def executar_comando_khal(
                     {
                         "event": "subprocess.timeout",
                         "tool": tool_name,
-                        "cmd": full_cmd[:6],
+                        "cmd": log_cmd,
                         "timeout": timeout,
                         "attempt": attempt,
                     }
@@ -140,6 +179,10 @@ def executar_comando_khal(
         except FileNotFoundError as exc:
             raise KhanInfrastructureError(
                 "khal binary not found in PATH. Install with `uv pip install khal`."
+            ) from exc
+        except PermissionError as exc:
+            raise KhanInfrastructureError(
+                f"khal binary not executable (permission denied): {exc}"
             ) from exc
         except OSError as exc:
             raise KhanInfrastructureError(f"OS error running khal: {exc}") from exc

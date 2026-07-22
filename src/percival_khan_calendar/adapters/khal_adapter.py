@@ -91,6 +91,8 @@ class KhalAdapter:
             for ev in cal.walk("VEVENT"):
                 yield ics_path, cal, ev
 
+    _SEARCH_FIELDS: tuple[str, ...] = ("summary", "description", "anywhere")
+
     def find_event(
         self,
         term: str,
@@ -100,7 +102,13 @@ class KhalAdapter:
         """Locate events matching ``term`` (case-insensitive substring).
 
         ``by`` may be 'summary', 'description' or 'anywhere' (default).
+        An invalid ``by`` raises ``KhanValidationError`` so the adapter
+        fails fast instead of leaking ``KeyError`` (regression).
         """
+        if by not in self._SEARCH_FIELDS:
+            raise KhanValidationError(
+                f"Invalid `by` argument: '{by}'. Allowed: {list(self._SEARCH_FIELDS)}."
+            )
         term_l = term.lower()
         matches: list[EventMatch] = []
         for ics_path, cal, ev in self._iter_event_files():
@@ -348,7 +356,13 @@ def _parse_khal_time(value: str) -> datetime:
 
 
 def _to_rrule(value: str):
-    """Translate 'daily' / 'weekly' / 'monthly' / 'yearly' to vRecur."""
+    """Translate 'daily' / 'weekly' / 'monthly' / 'yearly' to vRecur.
+
+    Raises:
+        KhanValidationError: If ``value`` is not in the allowed set
+            (this should be unreachable when called via the tool
+            layer because Pydantic validates first).
+    """
     from icalendar import vRecur
 
     mapping = {
@@ -357,15 +371,28 @@ def _to_rrule(value: str):
         "monthly": {"freq": "monthly"},
         "yearly": {"freq": "yearly"},
     }
-    return vRecur(mapping[value.lower()])
+    key = value.lower()
+    if key not in mapping:
+        raise KhanValidationError(f"Invalid recurrence '{value}'. Allowed: {sorted(mapping)}.")
+    return vRecur(mapping[key])
 
 
 def _make_valarm(alarm: str):
-    """Build a VALARM sub-component from '15m' / '1h' / '2d' string."""
+    """Build a VALARM sub-component from '15m' / '1h' / '2d' string.
+
+    Raises:
+        KhanValidationError: If ``alarm`` does not match the
+            ``<int><unit>`` pattern with ``unit in ``s m h d``.
+            The Pydantic layer normally catches this first.
+    """
     from icalendar import Alarm
 
-    amount = int(alarm[:-1])
-    unit = alarm[-1].lower()
+    if not isinstance(alarm, str) or len(alarm) < 2:
+        raise KhanValidationError(f"Invalid alarm '{alarm}'. Expected like '15m', '1h', '2d'.")
+    head, unit = alarm[:-1], alarm[-1].lower()
+    if not head.isdigit() or unit not in "smhd":
+        raise KhanValidationError(f"Invalid alarm '{alarm}'. Expected like '15m', '1h', '2d'.")
+    amount = int(head)
     delta = {
         "s": timedelta(seconds=amount),
         "m": timedelta(minutes=amount),
@@ -379,10 +406,43 @@ def _make_valarm(alarm: str):
 
 
 def _atomic_write_ics(path: Path, calendar: Calendar) -> None:
-    """Write ``.ics`` atomically via tmp + rename."""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_bytes(calendar.to_ical())
-    tmp.replace(path)
+    """Write ``.ics`` atomically via tmp + rename + fsync.
+
+    On Linux, ``os.rename`` is atomic on the same filesystem but the
+    rename itself is asynchronous and the data may not be on disk yet.
+    We ``fsync`` the tmp file **and** the directory so a power loss
+    between write and rename cannot leave a partial file in place.
+    """
+    import os
+    import tempfile
+
+    parent = path.parent
+    # ``tempfile.NamedTemporaryFile(delete=False)`` avoids colliding
+    # with other concurrent writers in different threads.
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(parent))
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(calendar.to_ical())
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
+    try:
+        # Make the directory entry durable.
+        dir_fd = os.open(str(parent), os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except (OSError, AttributeError):
+        # Directory fsync is not available on all platforms (Windows).
+        # Best-effort durability only.
+        pass
 
 
 def _persist_event(

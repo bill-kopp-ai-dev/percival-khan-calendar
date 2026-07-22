@@ -53,24 +53,29 @@ def register_status_tools(mcp: FastMCP) -> None:
         """
         from icalendar import Calendar
 
-        # 1. Compute and validate the target path BEFORE doing any I/O
-        # so we don't expose partial writes on error.
+        # 1. Compute paths BEFORE any I/O so we don't expose partial
+        # writes on error. The "user-supplied" path MUST be checked
+        # for symlinks *as written* (before resolution) so a redirect
+        # is caught at the source rather than at the resolved target.
         if not output_path:
             output_path = str(constants.WORKSPACE_DIR / "export.ics")
         try:
-            output = Path(output_path).resolve()
-            # Path-traversal guard: must stay inside the workspace.
-            output.relative_to(constants.WORKSPACE_DIR.resolve())
+            workspace = constants.WORKSPACE_DIR.resolve()
+            output_unresolved = Path(output_path)
+            try:
+                lstat = output_unresolved.lstat()
+                if (lstat.st_mode & 0o170000) == 0o120000:
+                    return "Refused: output_path must not be a symlink."
+            except FileNotFoundError:
+                # Fine — we will create the file. The symlink check
+                # only applies to pre-existing entries.
+                pass
+            # ``strict=False`` so we accept yet-to-be-created output
+            # paths inside the workspace.
+            output = output_unresolved.resolve(strict=False)
+            output.relative_to(workspace)  # path-traversal guard
         except (OSError, ValueError):
             return "Refused: output_path must be inside the workspace."
-        # Also reject symlinks pointing outside the workspace.
-        if output.is_symlink() or output.exists():
-            # .exists() on a symlink follows the target; if .is_symlink()
-            # is True we don't write there.
-            if output.is_symlink():
-                return "Refused: output_path must not be a symlink."
-            if output.resolve() != output:
-                return "Refused: output_path must not be a symlink."
 
         # 2. Read all source events inside the workspace lock so a
         # concurrent writer doesn't produce an inconsistent snapshot.
@@ -84,14 +89,15 @@ def register_status_tools(mcp: FastMCP) -> None:
                     for ev in sub.walk():
                         cal.add_component(ev)
                 # Write atomically to avoid leaving an empty .ics on
-                # mid-flight failure.
-                tmp = output.with_suffix(output.suffix + ".tmp")
-                tmp.write_bytes(cal.to_ical())
-                tmp.replace(output)
+                # mid-flight failure. _atomic_write_ics fsync's both
+                # file and parent directory for durability.
+                from ..adapters.khal_adapter import _atomic_write_ics
+
+                _atomic_write_ics(output, cal)
         except (OSError, ValueError, TypeError) as exc:
-            # Sanitized error: do NOT leak internal stack frames, paths
-            # from exception messages, or icalendar internals to the
-            # agent. Just the exception class is enough to debug.
+            # Sanitized error: do NOT leak internal stack frames,
+            # paths from exception messages, or icalendar internals
+            # to the agent. Just the exception class is enough to debug.
             logger.exception("khan_export_ics failed")
             return f"[recoverable_by_agent=false] export failed: {type(exc).__name__}"
         return f"Exported to {output}."
