@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        run: pip install uv
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install khal
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y khal || echo "khal not in apt; will use venv"
+          if ! command -v khal >/dev/null 2>&1; then
+            uv pip install --system khal
+          fi
+
+      - name: Sync dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Lint (ruff)
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Run tests with coverage
+        run: |
+          uv run pytest \
+            --cov=src/percival_khan_calendar \
+            --cov-report=term-missing \
+            --cov-fail-under=80

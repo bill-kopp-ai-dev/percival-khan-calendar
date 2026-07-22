@@ -26,14 +26,21 @@ Like all components of `percival.OS`, this MCP server strictly follows our core 
 ## 🚀 Features & Tools
 The server offers complete CRUD and visualization tools:
 
+**Original 8 tools (stable since v0.0.2):**
 - `khan_list_events`: List scheduled events for a specific day or period.
 - `khan_search_events`: Full-text search across the entire calendar database.
 - `khan_create_event`: Create new appointments with support for alarms and recurrence.
-- `khan_update_event`: Atomically update existing events.
+- `khan_update_event`: In-place update preserving UID and RRULE.
 - `khan_delete_event`: Permanently remove a specific event.
 - `khan_view_agenda`: Optimized agenda list for mobile/Telegram displays.
 - `khan_view_calendar`: Visual ASCII matrix of the month.
 - `khan_get_status`: Check operational status of the calendar server.
+
+**New tools since v0.2.0:**
+- `khan_delete_event_safe(confirm=False)`: Dry-run before deletion to avoid accidents.
+- `khan_get_event(exact_term)`: Inspect a single event's full details (UID, file, etc.).
+- `khan_list_calendars`: List calendars configured in `khal.conf`.
+- `khan_export_ics(output_path)`: Merge all events into a single `.ics` export.
 
 ---
 
@@ -85,6 +92,38 @@ This server is an integral module of the **percival.OS** project. It acts as an 
 
 - **Main Repository**: [https://github.com/bill-kopp-ai-dev/percival.OS](https://github.com/bill-kopp-ai-dev/percival.OS)
 - **License**: MIT
+
+---
+
+## 🩺 Troubleshooting
+
+### `KhanInfrastructureError: khal binary not found`
+Install khal: `uv pip install khal` (or use the apt package on Debian/Ubuntu).
+Verify with `which khal`.
+
+### `KhanInfrastructureError: timed out after Xs`
+The khal SQLite DB may be locked. Wait a moment and retry, or set
+`KHAN_ENABLE_LOCK=false` if you have only one process touching the
+calendar.
+
+### `KhanAmbiguousMatchError: Ambiguous match for 'foo': N candidates`
+Your search matched more than one event. Provide a more specific
+term, or use `khan_get_event` to inspect candidates one by one.
+
+### `KhanLockError: Workspace lock held by another process`
+A second agent is currently editing the calendar. Wait a few
+seconds, or set `KHAN_ENABLE_LOCK=false` (loses concurrency safety).
+
+### Workspace bootstrap failed
+Make sure `~/.nanobot/workspace/khalCalendar` is writable. Delete
+`khal.conf` to force regeneration on the next start. If permissions
+keep getting denied, check umask and parent directory ownership.
+
+### Running tests
+```bash
+uv sync --all-extras
+uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
+```
 
 ---
 *Developed with ❤️ by the percival.OS Team*
