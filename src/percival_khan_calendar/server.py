@@ -2,7 +2,15 @@
 
 This module is intentionally thin: ~50 LOC. All real logic lives in
 ``models``, ``exceptions``, ``security``, ``lifecycle`` and the
-``tools`` / ``adapters`` packages.
+``tools`` / ``adapters`` / ``resources`` packages.
+
+The entrypoint wires:
+
+* ``lifecycle.setup_workspace`` (auto-heal of khal.conf, idempotent)
+* a single ``KhalAdapter`` instance shared by every tool
+* the registered tools via ``register_all_tools``
+* 6 ``prompts.primitives`` via ``register_prompts``
+* 1 ``resources`` URI via ``register_resources``
 """
 
 from __future__ import annotations
@@ -14,7 +22,8 @@ from fastmcp import FastMCP
 
 from .adapters.khal_adapter import KhalAdapter
 from .lifecycle import setup_workspace
-from .tools import register_all_tools
+from .resources import register_resources
+from .tools import register_all_tools, register_prompts
 
 # Configure logging at module import time so child loggers (in
 # adapters/, tools/) pick it up. ``logging.basicConfig`` is a no-op
@@ -39,6 +48,8 @@ def main() -> None:
         raise
     adapter = KhalAdapter()
     register_all_tools(mcp, adapter)
+    register_prompts(mcp)
+    register_resources(mcp)
     mcp.run(transport="stdio")
 
 

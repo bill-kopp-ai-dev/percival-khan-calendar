@@ -99,6 +99,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 2/2 integration tests against the real khal 0.14.0 CLI still passing.
 - ruff clean.
 
+## [0.2.3] - 2026-XX-XX (MCP Prompts + Resource)
+
+### Added
+- **6 primitive prompts** are now registered via the MCP
+  ``prompts.primitives`` protocol, providing on-demand guidance
+  to the LLM agent instead of relying only on the per-tool
+  description (which is short by spec):
+  - ``khan_overview`` — full server tour (12 tools + workflow).
+  - ``khan_create_event_semantics`` — field syntax (time
+    expressions, alarm format, recurrence whitelist, TZ
+    semantics).
+  - ``khan_update_workflow`` — in-place update contract (UID,
+    RRULE, VALARM preservation rules).
+  - ``khan_delete_with_confirmation`` — two-call dry-run /
+    confirm protocol for ``khan_delete_event_safe``.
+  - ``khan_search_strategy`` (parameterized; ``keyword: str``,
+    ``scope: Literal[summary|location|description]``) — how to
+    qualify a search by field.
+  - ``khan_quick_action_quick_create`` (parameterized;
+    ``user_intent: str``) — verbatim echo + Portuguese-date
+    mapping for free-form user intents.
+- **1 resource** at ``khan://schema/main`` (MIME ``text/markdown``)
+  exposes the canonical technical reference on demand: storage
+  layout, khal.conf format, datetime semantics, documented
+  quirks, error taxonomy, and the codebase map. The agent reads
+  this when it needs to debug a tool failure or understand the
+  on-disk format without inflating the per-tool description.
+
+### Files
+- New: ``src/percival_khan_calendar/tools/prompts.py`` (~300 lines).
+- New: ``src/percival_khan_calendar/resources/docs.py`` (~140 lines).
+- New: ``src/percival_khan_calendar/resources/__init__.py``.
+- Modified: ``server.py`` to wire prompt + resource registration.
+- Modified: ``tools/__init__.py`` to re-export ``register_prompts``.
+- New: ``tests/test_prompts_and_resources.py`` (18 tests).
+
+### Verified
+- 176/176 unit tests passing (was 158 before this round).
+- 2/2 integration tests against the real khal 0.14.0 CLI passing.
+- ruff clean.
+- End-to-end via MCP stdio: ``prompts/list`` returns the 6 prompts;
+  ``resources/list`` returns the 1 resource; ``prompts/get name=
+  khan_quick_action_quick_create arguments={"user_intent":
+  "dentista amanha 10h"}`` renders with the verbatim echo.
+- Coverage 85.40%.
+
 ## [0.2.0] - 2026-XX-XX
 
 ### Added
