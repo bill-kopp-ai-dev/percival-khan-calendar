@@ -25,9 +25,12 @@ test = [
 
 [dependency-groups]
 dev = [
-    # Version pinned to match .pre-commit-config.yaml's ruff-pre-commit rev.
-    "ruff==0.6.9",
-]
+    # Pinned loosely on the lower bound to satisfy workspaces that pin
+    # newer (e.g. percival-agentmail-mcp's >=0.11.2). The matching
+    # .pre-commit-config.yaml rev keeps pre-commit and editor use
+    # consistent (see RUFF_PRE_COMMIT_REV).
+    "ruff>=0.11.2,<1.0.0",
+] 
 
 [project.urls]
 Homepage = "https://github.com/bill-kopp-ai-dev/percival.OS"
