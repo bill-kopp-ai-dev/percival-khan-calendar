@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 from fastmcp import FastMCP
+from pydantic import ValidationError
 
 from ..adapters.khal_adapter import KhalAdapter
 from ..exceptions import KhanError
 from ..models import CreateEventInput
 from ..security import envelope_untrusted_data
+
+
+def _validation_error_response(exc: ValidationError, tool: str) -> str:
+    """Return a structured, recoverable error string from a Pydantic failure."""
+    field_errors = "; ".join(
+        f"{'.'.join(str(p) for p in err.get('loc', ()))}: {err.get('msg', '')}"
+        for err in exc.errors()
+    )
+    return f"[recoverable_by_agent=true] {tool} rejected the input: {field_errors}"
 
 
 def register_create_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
@@ -36,15 +46,18 @@ def register_create_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         - recurrence (Optional): 'daily', 'weekly', 'monthly' or
           'yearly'.
         """
-        params = CreateEventInput(
-            title=title,
-            start=start,
-            end=end,
-            description=description,
-            location=location,
-            alarm=alarm,
-            recurrence=recurrence,
-        )
+        try:
+            params = CreateEventInput(
+                title=title,
+                start=start,
+                end=end,
+                description=description,
+                location=location,
+                alarm=alarm,
+                recurrence=recurrence,
+            )
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_create_event")
         try:
             match = adapter.write_event(
                 title=params.title,

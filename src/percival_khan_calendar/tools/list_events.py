@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 from fastmcp import FastMCP
+from pydantic import ValidationError
 
 from ..adapters.khal_adapter import EventMatch, KhalAdapter
 from ..adapters.subprocess_runner import executar_comando_khal
 from ..exceptions import KhanError
 from ..models import ListEventsInput, SearchEventsInput
 from ..security import envelope_untrusted_data
+
+
+def _validation_error_response(exc: ValidationError, tool: str) -> str:
+    """Return a structured, recoverable error string from a Pydantic failure."""
+    field_errors = "; ".join(
+        f"{'.'.join(str(p) for p in err.get('loc', ()))}: {err.get('msg', '')}"
+        for err in exc.errors()
+    )
+    return f"[recoverable_by_agent=true] {tool} rejected the input: {field_errors}"
 
 
 def register_list_events_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
@@ -25,10 +35,13 @@ def register_list_events_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         - range_or_end (optional): Duration (e.g., '7d', '1w', '30d')
           or a specific end date ('DD/MM/YYYY').
         """
-        params = ListEventsInput(
-            start_date=start_date,
-            range_or_end=range_or_end,
-        )
+        try:
+            params = ListEventsInput(
+                start_date=start_date,
+                range_or_end=range_or_end,
+            )
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_list_events")
         comando = ["list", params.start_date]
         if params.range_or_end:
             comando.append(params.range_or_end)
@@ -56,7 +69,10 @@ def register_list_events_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         - query: The keyword or phrase to search for (e.g., 'meeting',
           'dentist', 'Emily').
         """
-        params = SearchEventsInput(query=query)
+        try:
+            params = SearchEventsInput(query=query)
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_search_events")
         matches: list[EventMatch] = adapter.find_event(params.query)
         if not matches:
             return envelope_untrusted_data(

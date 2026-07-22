@@ -8,6 +8,7 @@ from pathlib import Path
 from fastmcp import FastMCP
 
 from .. import constants
+from ..adapters.locks import workspace_lock
 from ..adapters.subprocess_runner import executar_comando_khal
 from ..exceptions import KhanError
 from ..security import envelope_untrusted_data
@@ -52,24 +53,45 @@ def register_status_tools(mcp: FastMCP) -> None:
         """
         from icalendar import Calendar
 
+        # 1. Compute and validate the target path BEFORE doing any I/O
+        # so we don't expose partial writes on error.
         if not output_path:
             output_path = str(constants.WORKSPACE_DIR / "export.ics")
-        output = Path(output_path).resolve()
-        # Path-traversal guard: must stay inside the workspace.
         try:
+            output = Path(output_path).resolve()
+            # Path-traversal guard: must stay inside the workspace.
             output.relative_to(constants.WORKSPACE_DIR.resolve())
-        except ValueError:
+        except (OSError, ValueError):
             return "Refused: output_path must be inside the workspace."
+        # Also reject symlinks pointing outside the workspace.
+        if output.is_symlink() or output.exists():
+            # .exists() on a symlink follows the target; if .is_symlink()
+            # is True we don't write there.
+            if output.is_symlink():
+                return "Refused: output_path must not be a symlink."
+            if output.resolve() != output:
+                return "Refused: output_path must not be a symlink."
 
+        # 2. Read all source events inside the workspace lock so a
+        # concurrent writer doesn't produce an inconsistent snapshot.
         try:
-            cal = Calendar()
-            cal.add("prodid", "-//percival-khan-calendar//EN")
-            cal.add("version", "2.0")
-            for ics in constants.DATA_DIR.rglob("*.ics"):
-                sub = Calendar.from_ical(ics.read_bytes())
-                for ev in sub.walk():
-                    cal.add_component(ev)
-            output.write_bytes(cal.to_ical())
-        except Exception as exc:
-            return f"{type(exc).__name__}: {exc}"
+            with workspace_lock(blocking=True):
+                cal = Calendar()
+                cal.add("prodid", "-//percival-khan-calendar//EN")
+                cal.add("version", "2.0")
+                for ics in constants.DATA_DIR.rglob("*.ics"):
+                    sub = Calendar.from_ical(ics.read_bytes())
+                    for ev in sub.walk():
+                        cal.add_component(ev)
+                # Write atomically to avoid leaving an empty .ics on
+                # mid-flight failure.
+                tmp = output.with_suffix(output.suffix + ".tmp")
+                tmp.write_bytes(cal.to_ical())
+                tmp.replace(output)
+        except (OSError, ValueError, TypeError) as exc:
+            # Sanitized error: do NOT leak internal stack frames, paths
+            # from exception messages, or icalendar internals to the
+            # agent. Just the exception class is enough to debug.
+            logger.exception("khan_export_ics failed")
+            return f"[recoverable_by_agent=false] export failed: {type(exc).__name__}"
         return f"Exported to {output}."

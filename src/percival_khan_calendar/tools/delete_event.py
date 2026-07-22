@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 from fastmcp import FastMCP
+from pydantic import ValidationError
 
 from ..adapters.khal_adapter import KhalAdapter
-from ..exceptions import KhanError, KhanNotFoundError
+from ..exceptions import KhanAmbiguousMatchError, KhanError, KhanNotFoundError
 from ..models import DeleteEventInput
 from ..security import envelope_untrusted_data
+
+
+def _validation_error_response(exc: ValidationError, tool: str) -> str:
+    """Return a LLM-friendly message from a pydantic validation failure.
+
+    We choose to convert it to a string instead of letting the exception
+    bubble up so that the agent gets a structured hint about what to
+    fix rather than a traceback.
+    """
+    # pydantic v2 exposes errors() as a list[dict].
+    field_errors = "; ".join(
+        f"{'.'.join(str(p) for p in err.get('loc', ()))}: {err.get('msg', '')}"
+        for err in exc.errors()
+    )
+    return f"[recoverable_by_agent=true] {tool} rejected the input: {field_errors}"
 
 
 def register_delete_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
@@ -22,7 +38,10 @@ def register_delete_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
           description). Must be specific enough to avoid accidental
           deletion of multiple events.
         """
-        params = DeleteEventInput(exact_term=exact_term)
+        try:
+            params = DeleteEventInput(exact_term=exact_term)
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_delete_event")
         try:
             n = adapter.delete_event(params.exact_term)
         except KhanError as exc:
@@ -40,39 +59,33 @@ def register_delete_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         - exact_term: Unique identifier of the event.
         - confirm: If False (default), only reports the matched event
           so the agent can show the user what would be deleted.
+
+        Notes:
+          Dry-run report and actual delete both happen inside the
+          workspace lock, so a concurrent agent cannot delete the same
+          event twice between the report and the confirmation.
         """
-        DeleteEventInput(exact_term=exact_term)
-        matches = adapter.find_event(exact_term)
-        if len(matches) != 1:
-            return envelope_untrusted_data(
-                "Refused: "
-                + ("no matches" if not matches else f"{len(matches)} matches")
-                + "\nCandidates:\n"
-                + "\n".join(f"- [{m.uid}] {m.summary}" for m in matches[:10]),
-                "Delete dry-run",
-            )
-        m = matches[0]
-        if not confirm:
-            return envelope_untrusted_data(
-                "Dry run. Will delete:\n"
-                f"- UID: {m.uid}\n"
-                f"- Summary: {m.summary}\n"
-                f"- File: {m.filepath.name}\n"
-                "Set confirm=True to actually delete.",
-                "Delete dry-run",
-            )
         try:
-            adapter.delete_event(exact_term)
+            params = DeleteEventInput(exact_term=exact_term)
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_delete_event_safe")
+        try:
+            outcome = adapter.delete_event_safe(params.exact_term, confirm=confirm)
+        except (KhanAmbiguousMatchError, KhanNotFoundError) as exc:
+            return envelope_untrusted_data(f"Refused: {exc}", "Delete dry-run")
         except KhanError as exc:
             return f"{exc}"
-        return envelope_untrusted_data(f"Deleted event with UID {m.uid}.", "Delete")
+        return envelope_untrusted_data(outcome, "Delete")
 
     @mcp.tool("khan_get_event")
     def get_event(exact_term: str) -> str:
         """Return a single event's full details for inspection."""
-        DeleteEventInput(exact_term=exact_term)
         try:
-            m = adapter.find_event_unique(exact_term)
+            params = DeleteEventInput(exact_term=exact_term)
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_get_event")
+        try:
+            m = adapter.find_event_unique(params.exact_term)
         except KhanNotFoundError as exc:
             return f"{exc}"
         body = (

@@ -105,7 +105,13 @@ def test_search_events_no_matches(tool_app, isolated_workspace):
 
 
 def test_search_events_rejects_dash(tool_app, isolated_workspace):
-    """Argument-injection shield rejects '--foo'."""
+    """Argument-injection shield rejects '--foo'.
+
+    The tool catches the Pydantic ValidationError and returns an error
+    string instead of raising — this is the documented behavior since
+    the validation layer refactor.
+    """
     fn = get_tool_fn(tool_app[0], "khan_search_events")
-    with pytest.raises(Exception):
-        fn(query="--evil")
+    out = fn(query="--evil")
+    assert "rejected the input" in out
+    assert "recoverable_by_agent" in out

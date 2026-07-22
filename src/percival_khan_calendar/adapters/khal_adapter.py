@@ -30,6 +30,7 @@ from .. import constants
 from ..exceptions import (
     KhanAmbiguousMatchError,
     KhanNotFoundError,
+    KhanValidationError,
 )
 from .locks import workspace_lock
 
@@ -72,6 +73,9 @@ class KhalAdapter:
 
     def __init__(self, data_dir: Path | None = None) -> None:
         self._data_dir = data_dir or constants.DATA_DIR
+
+    def __repr__(self) -> str:
+        return f"KhalAdapter(data_dir={self._data_dir!r})"
 
     # ---- Reads -----------------------------------------------------------
 
@@ -183,7 +187,7 @@ class KhalAdapter:
                 ev.add("rrule", _to_rrule(recurrence))
             if alarm:
                 ev.add("valarm", _make_valarm(alarm))
-            return _persist_event(cal_name, ev)
+            return _persist_event(cal_name, ev, base_dir=self._data_dir)
 
     def update_event(
         self,
@@ -226,6 +230,48 @@ class KhalAdapter:
             existing.filepath.unlink()
             return 1
 
+    def delete_event_safe(self, term: str, *, confirm: bool = False) -> str:
+        """Atomic find-and-maybe-delete inside the workspace lock.
+
+        Returns a human-readable message describing the outcome. The
+        caller (``tools/delete_event.py``) wraps the result in the
+        standard envelope; we keep this adapter API free of LLM-aware
+        formatting so it is also usable from CLI scripts.
+
+        Outcomes:
+          - 0 matches  → KhanNotFoundError
+          - >1 matches → KhanAmbiguousMatchError (refuses; caller
+            must narrow the term)
+          - 1 match + confirm=False → "DRY-RUN" string with candidates
+          - 1 match + confirm=True  → "DELETED <uid>" string
+
+        Raises:
+            KhanError subclasses for failure to acquire lock, parse ICS,
+            or operate on files.
+        """
+        # Acquire lock up-front; the find and delete both happen inside
+        # it so two concurrent calls cannot see the same event twice.
+        with workspace_lock(blocking=True):
+            matches = self.find_event(term)
+            if len(matches) != 1:
+                # Reuse the unique path to surface a typed error to the
+                # agent (NotFound or AmbiguousMatch).
+                self.find_event_unique(term)
+                # The branch above is unreachable since find_event_unique
+                # always raises; keeps the explicit assertion for readers.
+                raise AssertionError  # pragma: no cover
+            m = matches[0]
+            if not confirm:
+                return (
+                    "DRY-RUN\n"
+                    f"- UID: {m.uid}\n"
+                    f"- Summary: {m.summary}\n"
+                    f"- File: {m.filepath.name}\n"
+                    "Set confirm=True to actually delete."
+                )
+            m.filepath.unlink()
+            return f"DELETED {m.uid}"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -238,23 +284,47 @@ def _make_uid() -> str:
 
 
 def _parse_khal_time(value: str) -> datetime:
-    """Best-effort parse of a khal-style time expression.
+    """Parse a khal-style time expression.
 
     Accepts:
-      * ``today`` / ``tomorrow``
+      * ``today`` / ``tomorrow`` / ``now``
       * ``DD/MM/YYYY`` / ``DD/MM/YYYY HH:MM``
-      * ISO-8601
-      * ``HH:MM``
-    Falls back to current local time if nothing matches.
+      * ISO-8601 (``%Y-%m-%dT%H:%M:%S``, ``%Y-%m-%d``)
+      * ``HH:MM`` (interpreted as today's local time)
+
+    Raises:
+        KhanValidationError: When ``value`` does not match any accepted
+            format. Previously this function silently fell back to
+            ``datetime.now()``, which hid bugs and produced events at
+            the wrong date when the user mistyped the input.
     """
+    if not isinstance(value, str):
+        raise KhanValidationError(f"Time expression must be a string, got {type(value).__name__}.")
     s = value.strip()
     now = datetime.now()
-    if s in ("", "now"):
+    if s == "now":
         return now
+
+    # Compound "today HH:MM" / "tomorrow HH:MM" expressions.
+    parts = s.split(None, 1)
+    if len(parts) == 2 and parts[0] in ("today", "tomorrow"):
+        day_keyword, time_str = parts
+        base = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if day_keyword == "tomorrow":
+            base = base + timedelta(days=1)
+        try:
+            t = datetime.strptime(time_str, "%H:%M").time()
+        except ValueError as exc:
+            raise KhanValidationError(
+                f"Invalid time component '{time_str}' in '{value}'. Expected HH:MM."
+            ) from exc
+        return base.replace(hour=t.hour, minute=t.minute)
+
     if s == "today":
         return now.replace(hour=0, minute=0, second=0, microsecond=0)
     if s == "tomorrow":
         return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
     for fmt in (
         "%d/%m/%Y %H:%M",
         "%d/%m/%Y",
@@ -269,7 +339,12 @@ def _parse_khal_time(value: str) -> datetime:
     try:
         return datetime.fromisoformat(s)
     except ValueError:
-        return now
+        pass
+    raise KhanValidationError(
+        f"Invalid time expression '{value}'. Expected 'today', 'tomorrow', "
+        f"'now', 'DD/MM/YYYY [HH:MM]', 'YYYY-MM-DD', 'HH:MM', "
+        "'today HH:MM' or 'tomorrow HH:MM'."
+    )
 
 
 def _to_rrule(value: str):
@@ -313,9 +388,10 @@ def _atomic_write_ics(path: Path, calendar: Calendar) -> None:
 def _persist_event(
     calendar_name: str,
     event: Event,
+    base_dir: Path,
 ) -> EventMatch:
-    """Write a new VEVENT into ``<DATA_DIR>/<calendar>/<uid>.ics``."""
-    target_dir = constants.DATA_DIR / calendar_name
+    """Write a new VEVENT into ``<base_dir>/<calendar>/<uid>.ics``."""
+    target_dir = base_dir / calendar_name
     target_dir.mkdir(parents=True, exist_ok=True)
     uid = str(event.get("uid", _make_uid()))
     target = target_dir / f"{uid}.ics"

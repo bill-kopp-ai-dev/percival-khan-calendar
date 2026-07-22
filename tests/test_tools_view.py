@@ -42,7 +42,10 @@ def test_view_agenda_empty_returns_msg(view_app, monkeypatch, isolated_workspace
     )
     fn = get_tool_fn(view_app, "khan_view_agenda")
     out = fn()
-    assert out == "No events."
+    # Empty stdout is still wrapped in the envelope (defence-in-depth)
+    # so the agent never sees raw user content without fences.
+    assert "<calendar_untrusted_data>" in out
+    assert "No events." in out
 
 
 def test_view_agenda_invalid_period_rejected():

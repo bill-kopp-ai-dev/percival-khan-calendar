@@ -43,7 +43,7 @@ def test_delete_safe_dry_run(delete_app):
     adapter.write_event(title="TestMe", start="today 12:00")
     fn = get_tool_fn(mcp, "khan_delete_event_safe")
     out = fn(exact_term="TestMe")
-    assert "Dry run" in out
+    assert "DRY-RUN" in out
     assert len(adapter.find_event("TestMe")) == 1
 
 
@@ -52,7 +52,7 @@ def test_delete_safe_confirm_removes(delete_app):
     adapter.write_event(title="TestMe", start="today 12:00")
     fn = get_tool_fn(mcp, "khan_delete_event_safe")
     out = fn(exact_term="TestMe", confirm=True)
-    assert "Deleted" in out
+    assert "DELETED" in out
     assert adapter.find_event("TestMe") == []
 
 

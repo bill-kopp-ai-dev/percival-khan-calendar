@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 from fastmcp import FastMCP
+from pydantic import ValidationError
 
 from ..adapters.khal_adapter import KhalAdapter
 from ..exceptions import KhanError
 from ..models import UpdateEventInput
 from ..security import envelope_untrusted_data
+
+
+def _validation_error_response(exc: ValidationError, tool: str) -> str:
+    """Return a structured, recoverable error string from a Pydantic failure."""
+    field_errors = "; ".join(
+        f"{'.'.join(str(p) for p in err.get('loc', ()))}: {err.get('msg', '')}"
+        for err in exc.errors()
+    )
+    return f"[recoverable_by_agent=true] {tool} rejected the input: {field_errors}"
 
 
 def register_update_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
@@ -28,14 +38,17 @@ def register_update_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         - new_title, new_start, new_end, new_description, new_location:
           New details. Empty string = leave unchanged.
         """
-        params = UpdateEventInput(
-            old_term=old_term,
-            new_title=new_title,
-            new_start=new_start,
-            new_end=new_end,
-            new_description=new_description,
-            new_location=new_location,
-        )
+        try:
+            params = UpdateEventInput(
+                old_term=old_term,
+                new_title=new_title,
+                new_start=new_start,
+                new_end=new_end,
+                new_description=new_description,
+                new_location=new_location,
+            )
+        except ValidationError as exc:
+            return _validation_error_response(exc, "khan_update_event")
         try:
             updated = adapter.update_event(
                 params.old_term,

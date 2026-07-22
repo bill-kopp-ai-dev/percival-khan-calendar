@@ -44,7 +44,7 @@ def test_ambiguous_carries_matches():
 
 def test_ambiguous_short_list():
     err = KhanAmbiguousMatchError("foo", ["A"])
-    assert "1 candidates" in str(err)
+    assert "1 candidate:" in str(err)
 
 
 def test_infrastructure_carries_message():

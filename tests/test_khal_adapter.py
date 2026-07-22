@@ -158,6 +158,30 @@ def test_atomic_write_creates_then_renames(adapter_with_dir, tmp_path):
     """Verify no leftover .tmp files after a successful write."""
     a = adapter_with_dir
     m = a.write_event(title="Atomic", start="today 12:00")
-    # No .tmp files should remain
-    leftovers = list(m.filepath.parent.glob("*.tmp"))
+    # No .tmp files should remain in this calendar directory. We
+    # restrict the search to our ``<DATA_DIR>/<calendar>`` directory
+    # to avoid false positives from other test artefacts that might
+    # write `.tmp` elsewhere (e.g., pytest's own temp files).
+    leftovers = [p for p in m.filepath.parent.iterdir() if p.name.endswith(".tmp")]
     assert leftovers == []
+
+
+def test_substring_search_does_not_collide(adapter_with_dir):
+    """find_event is a substring search by design; verify that search
+    for 'Bar' returns both 'Bar' AND 'Barbecue'. The safety guarantee
+    is in *delete_event* / *update_event*, which require a unique match.
+    """
+    a = adapter_with_dir
+    a.write_event(title="Bar", start="today 12:00")
+    a.write_event(title="Barbecue", start="today 13:00")
+    matches = a.find_event("Bar")
+    # Both events should match because we use substring semantics.
+    titles = sorted(m.summary for m in matches)
+    assert titles == ["Bar", "Barbecue"]
+    # But find_event_unique refuses to disambiguate:
+    import pytest
+
+    from percival_khan_calendar.exceptions import KhanAmbiguousMatchError
+
+    with pytest.raises(KhanAmbiguousMatchError):
+        a.find_event_unique("Bar")
