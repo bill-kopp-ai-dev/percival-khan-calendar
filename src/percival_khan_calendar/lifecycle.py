@@ -3,8 +3,7 @@
 The previous implementation killed the process on bootstrap failure,
 which is hostile to an agentic runtime: it loses context and cannot
 recover. We now try N times, then ``raise OSError`` so the caller can
-decide what to do (the FastMCP entrypoint logs and exits with a clear
-message, but at least gives the logs a chance).
+decide what to do.
 """
 
 from __future__ import annotations
@@ -14,13 +13,18 @@ import tempfile
 import time
 from pathlib import Path
 
-from .constants import CONF_FILE, DATA_DIR, LOCALE, WORKSPACE_DIR
+from . import constants
+from .constants import LOCALE
 
 logger = logging.getLogger("percival-khan-calendar.lifecycle")
 
 
 def setup_workspace(*, max_attempts: int = 3) -> bool:
     """Bootstrap the khal workspace, with bounded retries.
+
+    We deliberately read constants via ``constants.WORKSPACE_DIR``
+    (attribute access) rather than module-level imports so that tests
+    can monkeypatch the ``constants`` module at runtime.
 
     Returns:
         True on success.
@@ -31,9 +35,9 @@ def setup_workspace(*, max_attempts: int = 3) -> bool:
     last_exc: OSError | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            if not CONF_FILE.exists():
+            constants.WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+            constants.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            if not constants.CONF_FILE.exists():
                 _write_khal_conf()
             return True
         except OSError as exc:
@@ -55,13 +59,13 @@ def _write_khal_conf() -> None:
         mode="w",
         delete=False,
         prefix="khal.conf.",
-        dir=str(WORKSPACE_DIR),
+        dir=str(constants.WORKSPACE_DIR),
     )
     try:
         tmp.write(_render_khal_conf())
         tmp.close()
-        Path(tmp.name).replace(CONF_FILE)
-        logger.info("Wrote khal.conf to %s", CONF_FILE)
+        Path(tmp.name).replace(constants.CONF_FILE)
+        logger.info("Wrote khal.conf to %s", constants.CONF_FILE)
     except Exception:
         Path(tmp.name).unlink(missing_ok=True)
         raise
@@ -72,7 +76,7 @@ def _render_khal_conf() -> str:
         "[calendars]\n"
         "\n"
         "[[nanobot]]\n"
-        f"path = {DATA_DIR}\n"
+        f"path = {constants.DATA_DIR}\n"
         "type = calendar\n"
         "\n"
         "[default]\n"
@@ -86,7 +90,7 @@ def _render_khal_conf() -> str:
         f"longdatetimeformat = {LOCALE['longdatetimeformat']}\n"
         "\n"
         "[sqlite]\n"
-        f"path = {WORKSPACE_DIR}/khal.db\n"
+        f"path = {constants.WORKSPACE_DIR}/khal.db\n"
     )
 
 

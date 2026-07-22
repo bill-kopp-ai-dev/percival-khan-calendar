@@ -25,7 +25,11 @@ def envelopar_dados_nao_confiaveis(
     callers introduced in v0.0.2. The English alias
     ``envelope_untrusted_data`` is also provided.
     """
-    sanitized = dados.replace(_FENCE_OPEN, "&lt;calendar_untrusted_data&gt;")
+    sanitized = dados
+    sanitized = sanitized.replace(_FENCE_OPEN, "&lt;calendar_untrusted_data&gt;")
+    sanitized = sanitized.replace(
+        _FENCE_CLOSE, "&lt;/calendar_untrusted_data&gt;"
+    )
     if len(sanitized) > max_caracteres:
         sanitized = (
             sanitized[:max_caracteres]
