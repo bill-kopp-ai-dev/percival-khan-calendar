@@ -123,11 +123,22 @@ def executar_comando_khal(
         try:
             # Capture raw bytes; we decode manually below so a stray
             # non-UTF-8 byte cannot crash the tool.
+            # ``env={... os.environ}`` ensures the subprocess sees the
+            # same TZ (and locale) as the parent so that a local-time
+            # timestamp we wrote (khal_adapter writes ``DTSTART`` as
+            # local time) is interpreted identically when khal reads
+            # it back. Without this, an agent running in a UTC
+            # container but consuming calendars created in SP would
+            # see times shifted by 3 hours.
+            import os
+
+            inherit_env = {**os.environ, "LC_ALL": "C.UTF-8"}
             proc = subprocess.run(
                 full_cmd,
                 capture_output=True,
                 timeout=timeout,
                 check=False,
+                env=inherit_env,
             )
             elapsed_ms = int((time.monotonic() - start) * 1000)
             _log_event(
@@ -177,15 +188,32 @@ def executar_comando_khal(
                 )
             )
         except FileNotFoundError as exc:
-            raise KhanInfrastructureError(
+            # The khal binary is missing. ``retry_on_transient``
+            # (restricted to idempotent commands) makes sense here
+            # because the agent might have just installed khal — and
+            # the list/agenda commands are inherently idempotent.
+            # But the *message* still names the binary so a
+            # permanent misconfiguration is clearly the user's fault.
+            last_error = KhanInfrastructureError(
                 "khal binary not found in PATH. Install with `uv pip install khal`."
-            ) from exc
+            )
+            logger.warning(
+                json.dumps(
+                    {
+                        "event": "subprocess.missing_binary",
+                        "tool": tool_name,
+                        "exc": str(exc),
+                        "attempt": attempt,
+                    }
+                )
+            )
         except PermissionError as exc:
-            raise KhanInfrastructureError(
+            last_error = KhanInfrastructureError(
                 f"khal binary not executable (permission denied): {exc}"
-            ) from exc
+            )
         except OSError as exc:
-            raise KhanInfrastructureError(f"OS error running khal: {exc}") from exc
+            last_error = KhanInfrastructureError(f"OS error running khal: {exc}")
+            last_error.__cause__ = exc
 
     assert last_error is not None  # only reached if not raised above
     raise last_error

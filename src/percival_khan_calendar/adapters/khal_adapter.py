@@ -16,6 +16,7 @@ Locking is enforced by :func:`workspace_lock` (no-op when
 
 from __future__ import annotations
 
+import copy
 import logging
 import uuid
 from contextlib import contextmanager
@@ -29,6 +30,7 @@ from icalendar import Calendar, Event
 from .. import constants
 from ..exceptions import (
     KhanAmbiguousMatchError,
+    KhanInfrastructureError,
     KhanNotFoundError,
     KhanValidationError,
 )
@@ -110,7 +112,14 @@ class KhalAdapter:
                     self._skipped_ics.append(ics_path)
                 continue
             for ev in cal.walk("VEVENT"):
-                yield ics_path, cal, ev
+                # ``copy.deepcopy`` the Event so a consumer mutating
+                # ``ev["summary"] = ...`` cannot accidentally mutate
+                # another EventMatch in a different find() result or
+                # leave stale property dicts in the in-memory Calendar.
+                # Cost: one deep-copy per matched event during reads;
+                # writes are unaffected because ``update_event``
+                # re-acquires the lock and rebuilds the EventMatch.
+                yield ics_path, cal, copy.deepcopy(ev)
 
     _SEARCH_FIELDS: tuple[str, ...] = ("summary", "description", "anywhere")
 
@@ -229,7 +238,28 @@ class KhalAdapter:
         """In-place update preserving UID and RRULE."""
         with self._write_lock():
             existing = self.find_event_unique(old_term)
-            ev = existing.event
+            target_ics_path = existing.filepath
+            # ``find_event_unique`` returns an EventMatch built from
+            # deep-copied Events so consumer code never mutates the
+            # in-memory Calendar by accident. We must therefore
+            # re-read the on-disk .ics to obtain the canonical Calendar
+            # (still holding the workspace lock for atomicity).
+            try:
+                canonical = Calendar.from_ical(target_ics_path.read_bytes())
+            except Exception as exc:
+                # Ics corrupt on disk; surface to caller.
+                raise KhanInfrastructureError(
+                    f"Cannot read existing event file {target_ics_path.name}: {type(exc).__name__}"
+                ) from exc
+            events = list(canonical.walk("VEVENT"))
+            ev = next(
+                (e for e in events if str(e.get("uid")) == existing.uid),
+                None,
+            )
+            if ev is None:
+                # UID moved between read and write — bail loudly so the
+                # agent is told instead of writing a stale snapshot.
+                raise KhanNotFoundError(f"Event '{existing.uid}' disappeared mid-update.")
             for key, value in fields.items():
                 if value is None or value == "":
                     continue
@@ -244,10 +274,10 @@ class KhalAdapter:
                     ev["dtstart"] = _parse_khal_time(value)
                 elif k == "dtend":
                     ev["dtend"] = _parse_khal_time(value)
-            _atomic_write_ics(existing.filepath, existing.ical)
+            _atomic_write_ics(target_ics_path, canonical)
             return EventMatch(
-                filepath=existing.filepath,
-                ical=existing.ical,
+                filepath=target_ics_path,
+                ical=canonical,
                 event=ev,
                 uid=str(ev.get("uid", "")),
                 summary=str(ev.get("summary", "")),
@@ -315,13 +345,23 @@ def _make_uid() -> str:
 
 
 def _parse_khal_time(value: str) -> datetime:
-    """Parse a khal-style time expression.
+    """Parse a khal-style time expression into a **timezone-aware** datetime.
 
     Accepts:
       * ``today`` / ``tomorrow`` / ``now``
       * ``DD/MM/YYYY`` / ``DD/MM/YYYY HH:MM``
       * ISO-8601 (``%Y-%m-%dT%H:%M:%S``, ``%Y-%m-%d``)
       * ``HH:MM`` (interpreted as today's local time)
+
+    Returns:
+        A ``datetime`` with ``tzinfo`` set to the system's local time
+        zone (resolved via ``datetime.now().astimezone().tzinfo``).
+        The previous implementation returned naive datetimes which the
+        ``icalendar`` library would serialize without a timezone marker
+        (``DTSTART:20260722T132341``); reading that back on a machine
+        in a *different* zone would shift the event by the offset
+        between the two zones. Adding ``tzinfo`` lets icalendar emit
+        the ``Z``/``TZID`` properly.
 
     Raises:
         KhanValidationError: When ``value`` does not match any accepted
@@ -332,15 +372,18 @@ def _parse_khal_time(value: str) -> datetime:
     if not isinstance(value, str):
         raise KhanValidationError(f"Time expression must be a string, got {type(value).__name__}.")
     s = value.strip()
-    now = datetime.now()
+    now_local = datetime.now().astimezone()
+    # ``local_tz`` is what every parsed value defaults to when the user
+    # gave a wall-clock time without an explicit timezone.
+    local_tz = now_local.tzinfo
     if s == "now":
-        return now
+        return now_local
 
     # Compound "today HH:MM" / "tomorrow HH:MM" expressions.
     parts = s.split(None, 1)
     if len(parts) == 2 and parts[0] in ("today", "tomorrow"):
         day_keyword, time_str = parts
-        base = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        base = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
         if day_keyword == "tomorrow":
             base = base + timedelta(days=1)
         try:
@@ -349,12 +392,12 @@ def _parse_khal_time(value: str) -> datetime:
             raise KhanValidationError(
                 f"Invalid time component '{time_str}' in '{value}'. Expected HH:MM."
             ) from exc
-        return base.replace(hour=t.hour, minute=t.minute)
+        return base.replace(hour=t.hour, minute=t.minute, tzinfo=local_tz)
 
     if s == "today":
-        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return now_local.replace(hour=0, minute=0, second=0, microsecond=0)
     if s == "tomorrow":
-        return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (now_local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     for fmt in (
         "%d/%m/%Y %H:%M",
@@ -364,11 +407,16 @@ def _parse_khal_time(value: str) -> datetime:
         "%H:%M",
     ):
         try:
-            return datetime.strptime(s, fmt)
+            naive = datetime.strptime(s, fmt)
+            return naive.replace(tzinfo=local_tz)
         except ValueError:
             continue
     try:
-        return datetime.fromisoformat(s)
+        # ``fromisoformat`` supports the ``+HH:MM`` offset suffix. If
+        # the string has no offset we apply ``local_tz`` so the result
+        # is timezone-aware.
+        parsed = datetime.fromisoformat(s)
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=local_tz)
     except ValueError:
         pass
     raise KhanValidationError(
