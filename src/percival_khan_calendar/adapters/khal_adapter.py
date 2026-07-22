@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import re
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -187,6 +188,35 @@ class KhalAdapter:
         with workspace_lock(blocking=True):
             yield
 
+    _CALENDAR_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+
+    @classmethod
+    def _validate_calendar_name(cls, name: str) -> str:
+        """Reject calendar names that could become path components
+        outside ``DATA_DIR/<name>/``.
+
+        The calendar name is interpolated into a filesystem path —
+        no separators, no leading-dot, no traversal tokens. This
+        guard is defence-in-depth: today the tool layer does not
+        expose ``calendar``, but if anyone (today or tomorrow)
+        lets a user pass an arbitrary string here, an attacker
+        could escape ``DATA_DIR/<name>/`` and write anywhere the
+        process can write.
+        """
+        if not isinstance(name, str) or not name:
+            raise KhanValidationError("Calendar name must be a non-empty string.")
+        if "/" in name or "\\" in name or name.startswith("."):
+            raise KhanValidationError(
+                f"Invalid calendar name '{name}'. Must match "
+                r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63} and not start with '.'."
+            )
+        if not cls._CALENDAR_NAME_PATTERN.match(name):
+            raise KhanValidationError(
+                f"Invalid calendar name '{name}'. Must match "
+                r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}."
+            )
+        return name
+
     def write_event(
         self,
         *,
@@ -207,6 +237,7 @@ class KhalAdapter:
         (an explicit datetime) must be provided. ``end`` is optional.
         """
         cal_name = calendar or constants.DEFAULT_CALENDAR
+        cal_name = self._validate_calendar_name(cal_name)
         with self._write_lock():
             ev = Event()
             ev.add("uid", _make_uid())

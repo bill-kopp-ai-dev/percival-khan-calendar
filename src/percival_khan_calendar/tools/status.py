@@ -19,19 +19,46 @@ logger = logging.getLogger("percival-khan-calendar.tools.status")
 def _workspace_status() -> str:
     ws = constants.WORKSPACE_DIR
     data = constants.DATA_DIR
+    conf_exists = constants.CONF_FILE.exists()
+    if conf_exists:
+        try:
+            from ..lifecycle import _khal_conf_is_stale
+
+            conf_matches = not _khal_conf_is_stale()
+            conf_state = (
+                "exists, matches layout"
+                if conf_matches
+                else "EXISTS BUT STALE (drift vs current expected layout)"
+            )
+        except Exception:
+            # Never block the status response on a stale-check error.
+            conf_state = "exists (stale-check failed)"
+    else:
+        conf_state = "absent (will be created on next boot)"
     return (
         f"Workspace: {ws} ({'exists' if ws.exists() else 'absent'})\n"
         f"Data dir:  {data} ({'exists' if data.exists() else 'absent'})\n"
-        f"khal.conf: {constants.CONF_FILE} "
-        f"({'exists' if constants.CONF_FILE.exists() else 'absent'})\n"
-        f"Lock:      {'enabled' if constants.ENABLE_LOCK else 'disabled'}"
+        f"khal.conf: {constants.CONF_FILE} ({conf_state})\n"
+        f"Lock:      {'enabled' if constants.ENABLE_LOCK else 'disabled'}\n"
+        f"Calendar:  {constants.DEFAULT_CALENDAR} "
+        f"(data path: {data / constants.DEFAULT_CALENDAR})"
     )
 
 
 def register_status_tools(mcp: FastMCP) -> None:
     @mcp.tool("khan_get_status")
     def health_check() -> str:
-        """Check the operational status of the calendar server."""
+        """Check the operational status of the calendar server.
+
+        Round-6 follow-up: also surfaces whether the on-disk
+        ``khal.conf`` matches the layout the adapter writes
+        (DATA_DIR/<calendar>/<uid>.ics). When the conf is *stale*
+        the response says so explicitly and warns the operator to
+        restart the server — without this hint, an empty
+        ``khan_list_events`` looks identical to a legitimately
+        empty calendar and the agent reports "No events" while
+        writes continue to silently accumulate.
+        """
         return f"Percival Khan Calendar Server operational.\n{_workspace_status()}"
 
     @mcp.tool("khan_list_calendars")

@@ -10,6 +10,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refactor: roadmap published in `MCP_Docs/refactor_plans/percival-khan-calendar/`.
 
+## [0.2.1] - 2026-XX-XX (Round-6 follow-up)
+
+### Fixed
+- **`khan_list_events` reported "No events" while writes succeeded.**
+  Root cause had two layers:
+  1. `lifecycle.setup_workspace` only regenerated `khal.conf` if
+     the file was absent; workspaces that already had a stale
+     `khal.conf` from a previous deployment kept using the old
+     layout. Round-5's vdir-path fix (`path = DATA_DIR/<cal>`)
+     therefore left existing workspaces reading from the wrong
+     directory.
+  2. `executar_comando_khal` imported `CONF_FILE` from the
+     module-level `constants` binding, which was a stale
+     reference (CONF_FILE is a `Final[Path]`). This broke the
+     integration contract in any runtime that mutated
+     ``constants.CONF_FILE`` after import.
+- Auto-heal (`lifecycle._khal_conf_is_stale()`) now compares the
+  on-disk `khal.conf` against the freshly rendered template on
+  every boot and rewrites if they diverge (CRLF-normalized).
+- `executar_comando_khal` reads `CONF_FILE` via
+  `constants.CONF_FILE` (attribute access) so monkeypatch /
+  monkey-setattr propagates correctly.
+- `executar_comando_khal` resolves the ``khal`` binary to an
+  absolute path via `subprocess_runner._locate_khal()`, falling
+  back to a `.venv/bin/khal` lookup. The integration test
+  previously returned empty stdout because pytest's PATH lacked
+  the workspace venv's bin directory.
+
+### Added
+- `khan_get_status` now reports whether the on-disk `khal.conf`
+  matches the rendered template, and surfaces the data path the
+  agent should expect events to live under.
+- New test module `tests/test_integration_khal_subprocess.py`
+  exercises the real `khal list` CLI subprocess end-to-end
+  (opt-in via `-m integration`). Catches the round-5 layout
+  drift bug *before* release instead of catching it in
+  production.
+- `KhalAdapter._validate_calendar_name()` rejects calendar names
+  containing path separators, leading dots, or anything outside
+  `[A-Za-z0-9_.-]{1,64}`. Defence-in-depth for a future tool
+  that exposes the `calendar=` field directly.
+- `setup_workspace()` reads `KHAN_WORKSPACE_DIR` env var so an
+  agentic runtime can stage the calendar in an isolated location
+  without changing the package source.
+
+### Verified
+- 153/153 unit tests passing.
+- 2/2 integration tests against the real `khal 0.14.0` CLI passing.
+- ruff clean.
+
 ## [0.2.0] - 2026-XX-XX
 
 ### Added

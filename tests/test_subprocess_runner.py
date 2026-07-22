@@ -46,9 +46,11 @@ class TestSuccess:
     def test_injects_conf_flag(self, patched_runner):
         patched_runner.return_value = _mk_proc(returncode=0, stdout="ok")
         executar_comando_khal(["list", "today"], tool_name="t")
-        # First arg is "khal", second is "-c" with conf path
+        # Round-6: cmd[0] is now an absolute path to the khal binary
+        # (defence against PATH drift). We just check it ends in
+        # "khal" and the second arg is the conf-flag.
         args, _ = patched_runner.call_args
-        assert args[0][0] == "khal"
+        assert str(args[0][0]).endswith("khal")
         assert args[0][1] == "-c"
         assert str(args[0][2]).endswith("khal.conf")
 

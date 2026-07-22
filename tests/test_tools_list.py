@@ -43,7 +43,11 @@ def test_list_events_calls_subprocess(tool_app, monkeypatch, isolated_workspace)
     fn = get_tool_fn(tool_app[0], "khan_list_events")
     out = fn(start_date="today")
     assert "event 1" in out
-    assert captured["cmd"][0] == "khal"
+    # cmd[0] is the absolute path to the khal binary (round-6 fix
+    # so subprocesses always find khal even when PATH differs from
+    # the interpreter's). We assert the basename still ends in
+    # "khal" so the test remains informative.
+    assert captured["cmd"][0].endswith("khal")
     assert "list" in captured["cmd"]
     assert "today" in captured["cmd"]
 

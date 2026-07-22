@@ -155,13 +155,17 @@ def test_update_event_not_found(adapter_with_dir):
 
 
 def test_atomic_write_creates_then_renames(adapter_with_dir, tmp_path):
-    """Verify no leftover .tmp files after a successful write."""
+    """Verify no leftover .tmp files after a successful write.
+
+    Round-3 follow-up: refined to iterate (rather than glob) so we
+    don't pick up ``.tmp`` artefacts from other tooling.
+    """
     a = adapter_with_dir
     m = a.write_event(title="Atomic", start="today 12:00")
-    # No .tmp files should remain in this calendar directory. We
+    # No ``.tmp`` files should remain in this calendar directory. We
     # restrict the search to our ``<DATA_DIR>/<calendar>`` directory
     # to avoid false positives from other test artefacts that might
-    # write `.tmp` elsewhere (e.g., pytest's own temp files).
+    # write ``.tmp`` elsewhere (e.g., pytest's own temp files).
     leftovers = [p for p in m.filepath.parent.iterdir() if p.name.endswith(".tmp")]
     assert leftovers == []
 
@@ -169,8 +173,7 @@ def test_atomic_write_creates_then_renames(adapter_with_dir, tmp_path):
 def test_substring_search_does_not_collide(adapter_with_dir):
     """find_event is a substring search by design; verify that search
     for 'Bar' returns both 'Bar' AND 'Barbecue'. The safety guarantee
-    is in *delete_event* / *update_event*, which require a unique match.
-    """
+    is in *delete_event* / *update_event*, which require a unique match."""
     a = adapter_with_dir
     a.write_event(title="Bar", start="today 12:00")
     a.write_event(title="Barbecue", start="today 13:00")
@@ -185,3 +188,54 @@ def test_substring_search_does_not_collide(adapter_with_dir):
 
     with pytest.raises(KhanAmbiguousMatchError):
         a.find_event_unique("Bar")
+
+
+# ---------------------------------------------------------------------------
+# Round-6 follow-up: S5 — path-traversal guard on the ``calendar`` field
+# ---------------------------------------------------------------------------
+
+
+class TestCalendarNameGuard:
+    def test_valid_calendar_name_accepted(self, adapter_with_dir):
+        a = adapter_with_dir
+        # Default nanobot works.
+        m = a.write_event(title="X", start="today 10:00", calendar="nanobot")
+        assert m.filepath.parent.name == "nanobot"
+
+    def test_path_separator_rejected(self, adapter_with_dir):
+        import pytest
+
+        from percival_khan_calendar.exceptions import KhanValidationError
+
+        a = adapter_with_dir
+        with pytest.raises(KhanValidationError, match="Invalid calendar name"):
+            a.write_event(title="X", start="today 10:00", calendar="../escape")
+
+    def test_backslash_rejected(self, adapter_with_dir):
+        a = adapter_with_dir
+        import pytest
+
+        from percival_khan_calendar.exceptions import KhanValidationError
+
+        with pytest.raises(KhanValidationError, match="Invalid calendar name"):
+            a.write_event(title="X", start="today 10:00", calendar="a\\b")
+
+    def test_leading_dot_rejected(self, adapter_with_dir):
+        a = adapter_with_dir
+        import pytest
+
+        from percival_khan_calendar.exceptions import KhanValidationError
+
+        with pytest.raises(KhanValidationError, match="Invalid calendar name"):
+            a.write_event(title="X", start="today 10:00", calendar=".hidden")
+
+    def test_empty_rejected(self, adapter_with_dir):
+        """Calling the adapter directly with ``calendar=""`` falls
+        back to ``constants.DEFAULT_CALENDAR`` (``adapter.write_event``
+        uses ``calendar or DEFAULT_CALENDAR``). The valid 'nanobot'
+        default is accepted.
+        """
+        a = adapter_with_dir
+        m = a.write_event(title="X", start="today 10:00", calendar="")
+        # Empty string -> default "nanobot", which is valid.
+        assert m.filepath.parent.name == "nanobot"

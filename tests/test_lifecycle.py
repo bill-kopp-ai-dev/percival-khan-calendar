@@ -77,3 +77,67 @@ def test_setup_workspace_retries_then_raises(monkeypatch, tmp_path):
     with pytest.raises(OSError, match="simulated permission"):
         setup_workspace(max_attempts=3)
     assert call_count["n"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Round-6 follow-up: S1 — auto-heal of drifted khal.conf
+# ---------------------------------------------------------------------------
+
+
+def test_setup_workspace_regenerates_stale_conf(isolated_workspace):
+    """When the on-disk khal.conf differs from the rendered template,
+    setup_workspace rewrites it (auto-heal for downstream drift)."""
+    from percival_khan_calendar.lifecycle import (
+        _khal_conf_is_stale,
+        setup_workspace,
+    )
+
+    # Write a deliberately stale version (the round-5 buggy layout):
+    # ``path = DATA_DIR`` instead of ``DATA_DIR/<calendar>``.
+    conf = isolated_workspace / "khal.conf"
+    bad_content = "[calendars]\n\n[[nanobot]]\npath = /tmp/x\ntype = calendar\n"
+    conf.write_text(bad_content, encoding="utf-8")
+    assert _khal_conf_is_stale() is True
+
+    setup_workspace()
+    assert _khal_conf_is_stale() is False
+    # Auto-heal preserved the same content rendered when no drift exists.
+    new_content = conf.read_text(encoding="utf-8")
+    assert "path = /tmp/x" not in new_content
+
+
+def test_setup_workspace_is_idempotent_after_heal(isolated_workspace):
+    """After auto-heal, calling setup_workspace again must NOT keep
+    rewriting on every invocation (avoids needless churn)."""
+    from percival_khan_calendar import constants
+    from percival_khan_calendar.lifecycle import setup_workspace
+
+    conf = constants.CONF_FILE
+    # Force a drift cycle first:
+    conf.write_text(
+        "[calendars]\n\n[[nanobot]]\npath = /tmp/stale\ntype = calendar\n",
+        encoding="utf-8",
+    )
+    setup_workspace()
+    rendered_now = conf.read_text(encoding="utf-8")
+    # Second call: same content, no rewrite churn.
+    mtime_first = conf.stat().st_mtime_ns
+    setup_workspace()
+    mtime_second = conf.stat().st_mtime_ns
+    assert mtime_first == mtime_second
+    assert conf.read_text(encoding="utf-8") == rendered_now
+
+
+def test_khal_conf_crlf_normalized_in_stale_check(isolated_workspace):
+    """``_khal_conf_is_stale()`` ignores CRLF/LF differences so users
+    syncing the file across platforms don't get spurious regenerations."""
+    from percival_khan_calendar.lifecycle import (
+        _khal_conf_is_stale,
+        _render_khal_conf,
+    )
+
+    conf = isolated_workspace / "khal.conf"
+    rendered = _render_khal_conf()
+    conf.write_bytes(rendered.replace("\n", "\r\n").encode("utf-8"))
+    # CRLF should NOT count as drift.
+    assert _khal_conf_is_stale() is False

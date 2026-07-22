@@ -17,10 +17,12 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 
-from ..constants import CONF_FILE, DEFAULT_SUBPROCESS_TIMEOUT
+from .. import constants
+from ..constants import DEFAULT_SUBPROCESS_TIMEOUT
 from ..exceptions import (
     KhanInfrastructureError,
     KhanValidationError,
@@ -60,6 +62,48 @@ def _safe_log_cmd(cmd: list[str]) -> list[str]:
     if len(cmd) > 6:
         head.append("...")
     return head
+
+
+def _locate_khal() -> str:
+    """Return the absolute path to the ``khal`` binary.
+
+    Round-6 follow-up: ``subprocess.run(["khal", ...])`` inherits the
+    parent's PATH. When the parent is pytest driven by ``uv run
+    pytest``, that PATH **does not include the workspace's
+    ``.venv/bin``** even though the Python interpreter itself
+    was loaded from there. We fall back to a ``shutil.which`` lookup
+    that walks PATH explicitly and additionally probes for the
+    conventional ``<workspace>/.venv/bin/khal`` location so the
+    integration test (and any agentic runtime that doesn't ship
+    ``khal`` in its default PATH) still works.
+
+    Returns the absolute path. Raises ``FileNotFoundError`` only if
+    the binary cannot be located at all — the caller lifts that into
+    the standard ``KhanInfrastructureError`` "khal binary not found"
+    so behaviour is unchanged for end users.
+    """
+    import shutil
+    from pathlib import Path as _Path
+
+    direct = shutil.which("khal")
+    if direct:
+        return direct
+    # Conventional venv layout: the file that owns the interpreter
+    # sits in <venv>/bin, so ``khal`` should sit next to it.
+    try:
+        exe = _Path(sys.executable)
+        # exe is something like .../percival-khan-calendar/.venv/bin/python
+        # try sibling khal, then walk up to find a venv with khal.
+        sibling = exe.parent / "khal"
+        if sibling.exists():
+            return str(sibling)
+        for ancestor in (exe.parent, *exe.parents):
+            candidate = ancestor / "bin" / "khal"
+            if candidate.exists():
+                return str(candidate)
+    except (OSError, RuntimeError):
+        pass
+    return "khal"  # last resort: rely on subprocess PATH lookup
 
 
 def _decode(data: bytes | str | None) -> str:
@@ -106,6 +150,13 @@ def executar_comando_khal(
         KhanInfrastructureError: missing binary, timeout, or generic khal
             failure (NOT recoverable).
     """
+    # Round-6 follow-up: do NOT read CONF_FILE from a captured module-
+    # level binding (``from ..constants import CONF_FILE``) — the
+    # binding was captured at import time, before pytest's
+    # isolated_workspace fixture had a chance to monkeypatch
+    # ``constants.CONF_FILE``. We read via the attributes of the
+    # ``constants`` module directly so that monkeypatch propagates.
+    conf_file_path = str(constants.CONF_FILE)
     if retry_on_transient and comando and comando[0] not in _IDEMPOTENT_SUBCOMMANDS:
         logger.warning(
             "Refusing to retry non-idempotent subcommand %r",
@@ -113,7 +164,7 @@ def executar_comando_khal(
         )
         retry_on_transient = False
 
-    full_cmd = ["khal", "-c", str(CONF_FILE), *comando]
+    full_cmd = [_locate_khal(), "-c", conf_file_path, *comando]
     log_cmd = _safe_log_cmd(full_cmd)
     attempts = max_retries if retry_on_transient else 0
     last_error: KhanInfrastructureError | None = None
