@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from percival_khan_calendar.models import CreateEventInput
@@ -17,9 +18,7 @@ from percival_khan_calendar.models import CreateEventInput
     alarm=st.text(min_size=0, max_size=16),
     recurrence=st.text(min_size=0, max_size=16),
 )
-def test_create_event_input_never_crashes(
-    title, start, description, location, alarm, recurrence
-):
+def test_create_event_input_never_crashes(title, start, description, location, alarm, recurrence):
     """The validator must always raise ValidationError or return a model,
     never crash with an unexpected exception."""
     try:

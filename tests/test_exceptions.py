@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from percival_khan_calendar.exceptions import (
     KhanAmbiguousMatchError,
     KhanError,

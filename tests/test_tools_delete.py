@@ -69,7 +69,9 @@ def test_delete_safe_many_matches_refuses(delete_app):
 def test_get_event_returns_match(delete_app):
     mcp, adapter = delete_app
     adapter.write_event(
-        title="My Event", start="today 10:00", description="Note",
+        title="My Event",
+        start="today 10:00",
+        description="Note",
     )
     fn = get_tool_fn(mcp, "khan_get_event")
     out = fn(exact_term="My Event")

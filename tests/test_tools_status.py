@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from percival_khan_calendar.adapters.subprocess_runner import (
@@ -32,23 +30,17 @@ def test_health_check_returns_status(status_app, isolated_workspace):
     assert "Lock:" in out
 
 
-def test_list_calendars_happy(
-    status_app, monkeypatch, isolated_workspace
-):
+def test_list_calendars_happy(status_app, monkeypatch, isolated_workspace):
     monkeypatch.setattr(
         "percival_khan_calendar.adapters.subprocess_runner.subprocess.run",
-        lambda *a, **kw: KhalResult(
-            stdout="nanobot", returncode=0, elapsed_ms=1
-        ),
+        lambda *a, **kw: KhalResult(stdout="nanobot", returncode=0, elapsed_ms=1),
     )
     fn = get_tool_fn(status_app, "khan_list_calendars")
     out = fn()
     assert "nanobot" in out
 
 
-def test_list_calendars_infra_error(
-    status_app, monkeypatch, isolated_workspace
-):
+def test_list_calendars_infra_error(status_app, monkeypatch, isolated_workspace):
     from percival_khan_calendar.exceptions import KhanInfrastructureError
 
     def boom(*a, **kw):
@@ -63,9 +55,7 @@ def test_list_calendars_infra_error(
     assert "khal binary not found" in out
 
 
-def test_export_ics_default_path(
-    status_app, monkeypatch, isolated_workspace
-):
+def test_export_ics_default_path(status_app, monkeypatch, isolated_workspace):
     from percival_khan_calendar.adapters.khal_adapter import KhalAdapter
 
     a = KhalAdapter()
@@ -81,9 +71,7 @@ def test_export_ics_default_path(
     assert b"E1" in body and b"E2" in body
 
 
-def test_export_ics_rejects_path_traversal(
-    status_app, isolated_workspace
-):
+def test_export_ics_rejects_path_traversal(status_app, isolated_workspace):
     fn = get_tool_fn(status_app, "khan_export_ics")
     out = fn(output_path="/etc/passwd")
     assert "Refused" in out

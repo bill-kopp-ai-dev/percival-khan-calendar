@@ -65,9 +65,7 @@ def register_delete_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
             adapter.delete_event(exact_term)
         except KhanError as exc:
             return f"{exc}"
-        return envelope_untrusted_data(
-            f"Deleted event with UID {m.uid}.", "Delete"
-        )
+        return envelope_untrusted_data(f"Deleted event with UID {m.uid}.", "Delete")
 
     @mcp.tool("khan_get_event")
     def get_event(exact_term: str) -> str:

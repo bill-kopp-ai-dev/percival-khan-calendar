@@ -71,11 +71,7 @@ def executar_comando_khal(
         KhanInfrastructureError: missing binary, timeout, or generic khal
             failure (NOT recoverable).
     """
-    if (
-        retry_on_transient
-        and comando
-        and comando[0] not in _IDEMPOTENT_SUBCOMMANDS
-    ):
+    if retry_on_transient and comando and comando[0] not in _IDEMPOTENT_SUBCOMMANDS:
         logger.warning(
             "Refusing to retry non-idempotent subcommand %r",
             comando[0],
@@ -119,9 +115,7 @@ def executar_comando_khal(
                 or "error:" in stderr.lower()
                 or "invalid" in stderr.lower()
             ):
-                raise KhanValidationError(
-                    f"khal rejected the command: {stderr or proc.stdout}"
-                )
+                raise KhanValidationError(f"khal rejected the command: {stderr or proc.stdout}")
 
             last_error = KhanInfrastructureError(
                 f"khal exited with code {proc.returncode}: {stderr}"
@@ -133,23 +127,22 @@ def executar_comando_khal(
                 f"khal timed out after {timeout}s: {' '.join(full_cmd)}"
             )
             logger.error(
-                json.dumps({
-                    "event": "subprocess.timeout",
-                    "tool": tool_name,
-                    "cmd": full_cmd[:6],
-                    "timeout": timeout,
-                    "attempt": attempt,
-                })
+                json.dumps(
+                    {
+                        "event": "subprocess.timeout",
+                        "tool": tool_name,
+                        "cmd": full_cmd[:6],
+                        "timeout": timeout,
+                        "attempt": attempt,
+                    }
+                )
             )
         except FileNotFoundError as exc:
             raise KhanInfrastructureError(
-                "khal binary not found in PATH. "
-                "Install with `uv pip install khal`."
+                "khal binary not found in PATH. Install with `uv pip install khal`."
             ) from exc
         except OSError as exc:
-            raise KhanInfrastructureError(
-                f"OS error running khal: {exc}"
-            ) from exc
+            raise KhanInfrastructureError(f"OS error running khal: {exc}") from exc
 
     assert last_error is not None  # only reached if not raised above
     raise last_error
@@ -165,14 +158,16 @@ def _log_event(
 ) -> None:
     """Emit one JSON log line per call (when log level permits)."""
     logger.info(
-        json.dumps({
-            "event": "khal.call",
-            "tool": tool,
-            "cmd": cmd,
-            "returncode": returncode,
-            "elapsed_ms": elapsed_ms,
-            "attempt": attempt,
-        })
+        json.dumps(
+            {
+                "event": "khal.call",
+                "tool": tool,
+                "cmd": cmd,
+                "returncode": returncode,
+                "elapsed_ms": elapsed_ms,
+                "attempt": attempt,
+            }
+        )
     )
 
 

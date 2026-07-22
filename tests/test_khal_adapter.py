@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -39,7 +38,9 @@ def test_create_event_returns_match(adapter_with_dir):
 def test_create_event_persists_ics(adapter_with_dir):
     a = adapter_with_dir
     m = a.write_event(
-        title="Meeting", start="today 14:00", end="today 15:00",
+        title="Meeting",
+        start="today 14:00",
+        end="today 15:00",
         description="Quarterly review",
         location="Conf room A",
     )
@@ -67,7 +68,9 @@ def test_find_event_by_summary(adapter_with_dir):
 def test_find_event_by_description(adapter_with_dir):
     a = adapter_with_dir
     a.write_event(
-        title="X", start="today 10:00", description="annual checkup",
+        title="X",
+        start="today 10:00",
+        description="annual checkup",
     )
     matches = a.find_event("checkup", by="description")
     assert len(matches) == 1
@@ -93,7 +96,9 @@ def test_find_event_unique_raises_on_many(adapter_with_dir):
 def test_update_event_preserves_uid(adapter_with_dir):
     a = adapter_with_dir
     original = a.write_event(
-        title="Original", start="today 10:00", end="today 11:00",
+        title="Original",
+        start="today 10:00",
+        end="today 11:00",
         location="Office",
     )
     original_uid = original.uid
@@ -112,7 +117,9 @@ def test_update_event_preserves_uid(adapter_with_dir):
 def test_update_event_preserves_rrule(adapter_with_dir):
     a = adapter_with_dir
     original = a.write_event(
-        title="Weekly", start="today 10:00", recurrence="weekly",
+        title="Weekly",
+        start="today 10:00",
+        recurrence="weekly",
     )
     assert original.event.get("rrule") is not None
     original_uid = original.uid

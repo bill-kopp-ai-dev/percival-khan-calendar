@@ -67,9 +67,7 @@ def workspace_lock(
                 fcntl.flock(fd, op)
             except OSError as exc:
                 if exc.errno in (errno.EWOULDBLOCK, errno.EAGAIN):
-                    raise KhanLockError(
-                        f"Workspace lock {path} held by another process"
-                    ) from exc
+                    raise KhanLockError(f"Workspace lock {path} held by another process") from exc
                 raise
         else:
             deadline = time.monotonic() + timeout_s
@@ -82,8 +80,7 @@ def workspace_lock(
                         raise
                     if time.monotonic() > deadline:
                         raise KhanLockError(
-                            f"Workspace lock {path} not released "
-                            f"within {timeout_s}s"
+                            f"Workspace lock {path} not released within {timeout_s}s"
                         ) from exc
                 time.sleep(0.05)
         yield

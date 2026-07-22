@@ -31,10 +31,7 @@ class KhanAmbiguousMatchError(KhanError):
     def __init__(self, term: str, matches: list[str]):
         self.term = term
         self.matches = matches
-        super().__init__(
-            f"Ambiguous match for '{term}': "
-            f"{len(matches)} candidates: {matches[:3]}"
-        )
+        super().__init__(f"Ambiguous match for '{term}': {len(matches)} candidates: {matches[:3]}")
 
 
 class KhanInfrastructureError(KhanError, RuntimeError):

@@ -13,7 +13,6 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from .constants import (
-    ALLOWED_AGENDA_PERIODS,
     ALLOWED_ALARM_PATTERN,
     ALLOWED_RECURRENCE_VALUES,
     MAX_DESCRIPTION_LEN,
@@ -30,8 +29,7 @@ class ListEventsInput(BaseModel):
     start_date: str = Field(
         default="today",
         description=(
-            "Starting point for the list. Accepts 'today', 'tomorrow', "
-            "'now', or DD/MM/YYYY."
+            "Starting point for the list. Accepts 'today', 'tomorrow', 'now', or DD/MM/YYYY."
         ),
         max_length=MAX_SHORT_STR_LEN,
     )
@@ -65,9 +63,7 @@ class SearchEventsInput(BaseModel):
     @classmethod
     def _no_injection(cls, v: str) -> str:
         if v.startswith("-") or "--" in v:
-            raise ValueError(
-                "Query starting with '-' or containing '--' is rejected."
-            )
+            raise ValueError("Query starting with '-' or containing '--' is rejected.")
         return v
 
 
@@ -86,10 +82,7 @@ class CreateEventInput(BaseModel):
     @classmethod
     def _validate_alarm(cls, v: str) -> str:
         if v and not re.match(ALLOWED_ALARM_PATTERN, v):
-            raise ValueError(
-                f"Invalid alarm format '{v}'. "
-                "Expected like '15m', '1h', '2d'."
-            )
+            raise ValueError(f"Invalid alarm format '{v}'. Expected like '15m', '1h', '2d'.")
         return v
 
     @field_validator("recurrence")
@@ -97,8 +90,7 @@ class CreateEventInput(BaseModel):
     def _validate_recurrence(cls, v: str) -> str:
         if v and v.lower() not in ALLOWED_RECURRENCE_VALUES:
             raise ValueError(
-                f"Invalid recurrence '{v}'. "
-                f"Allowed: {sorted(ALLOWED_RECURRENCE_VALUES)}"
+                f"Invalid recurrence '{v}'. Allowed: {sorted(ALLOWED_RECURRENCE_VALUES)}"
             )
         return v.lower()
 
@@ -123,14 +115,13 @@ class UpdateEventInput(BaseModel):
     new_description: str = Field(default="", max_length=MAX_DESCRIPTION_LEN)
     new_location: str = Field(default="", max_length=MAX_LOCATION_LEN)
 
-    @field_validator("old_term", "new_title", "new_start", "new_end",
-                     "new_description", "new_location")
+    @field_validator(
+        "old_term", "new_title", "new_start", "new_end", "new_description", "new_location"
+    )
     @classmethod
     def _reject_argument_injection(cls, v: str) -> str:
         if v and (v.startswith("-") or "--" in v):
-            raise ValueError(
-                "Inputs starting with '-' or containing '--' are rejected."
-            )
+            raise ValueError("Inputs starting with '-' or containing '--' are rejected.")
         return v
 
 
@@ -143,9 +134,7 @@ class DeleteEventInput(BaseModel):
     @classmethod
     def _reject_argument_injection(cls, v: str) -> str:
         if v.startswith("-") or "--" in v:
-            raise ValueError(
-                "Terms starting with '-' or containing '--' are rejected."
-            )
+            raise ValueError("Terms starting with '-' or containing '--' are rejected.")
         return v
 
 

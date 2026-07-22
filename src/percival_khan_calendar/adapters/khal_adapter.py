@@ -108,14 +108,16 @@ class KhalAdapter:
                 "anywhere": f"{summary}\n{description}",
             }[by]
             if term_l in haystack:
-                matches.append(EventMatch(
-                    filepath=ics_path,
-                    ical=cal,
-                    event=ev,
-                    uid=str(ev.get("uid", "")),
-                    summary=str(ev.get("summary", "")),
-                    description=str(ev.get("description", "")),
-                ))
+                matches.append(
+                    EventMatch(
+                        filepath=ics_path,
+                        ical=cal,
+                        event=ev,
+                        uid=str(ev.get("uid", "")),
+                        summary=str(ev.get("summary", "")),
+                        description=str(ev.get("description", "")),
+                    )
+                )
         return matches
 
     def find_event_unique(
@@ -126,9 +128,7 @@ class KhalAdapter:
     ) -> EventMatch:
         matches = self.find_event(term, by=by)
         if not matches:
-            raise KhanNotFoundError(
-                f"No event matches '{term}'."
-            )
+            raise KhanNotFoundError(f"No event matches '{term}'.")
         if len(matches) > 1:
             raise KhanAmbiguousMatchError(
                 term=term,
@@ -254,9 +254,7 @@ def _parse_khal_time(value: str) -> datetime:
     if s == "today":
         return now.replace(hour=0, minute=0, second=0, microsecond=0)
     if s == "tomorrow":
-        return (
-            now + timedelta(days=1)
-        ).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     for fmt in (
         "%d/%m/%Y %H:%M",
         "%d/%m/%Y",

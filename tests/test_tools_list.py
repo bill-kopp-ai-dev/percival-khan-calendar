@@ -11,6 +11,7 @@ from percival_khan_calendar.adapters.subprocess_runner import (
     KhalResult,
 )
 from percival_khan_calendar.exceptions import KhanInfrastructureError
+
 from ._helpers import get_tool_fn
 
 
@@ -28,9 +29,7 @@ def tool_app(isolated_workspace: Path):
     return mcp, adapter
 
 
-def test_list_events_calls_subprocess(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_calls_subprocess(tool_app, monkeypatch, isolated_workspace):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -49,9 +48,7 @@ def test_list_events_calls_subprocess(
     assert "today" in captured["cmd"]
 
 
-def test_list_events_with_range(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_with_range(tool_app, monkeypatch, isolated_workspace):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -67,9 +64,7 @@ def test_list_events_with_range(
     assert "7d" in captured["cmd"]
 
 
-def test_list_events_handles_empty(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_handles_empty(tool_app, monkeypatch, isolated_workspace):
     monkeypatch.setattr(
         "percival_khan_calendar.adapters.subprocess_runner.subprocess.run",
         lambda *a, **kw: KhalResult(stdout="", returncode=0, elapsed_ms=1),
@@ -79,9 +74,7 @@ def test_list_events_handles_empty(
     assert "No events" in out
 
 
-def test_list_events_infrastructure_error(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_infrastructure_error(tool_app, monkeypatch, isolated_workspace):
     def boom(cmd, **kwargs):
         raise KhanInfrastructureError("khal binary not found")
 

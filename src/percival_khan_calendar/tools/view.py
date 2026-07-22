@@ -12,17 +12,9 @@ from ..models import ViewAgendaInput, ViewCalendarInput
 
 def _short_render(title: str, body: str) -> str:
     """Common Telegram-style + envelope wrapping used by view tools."""
-    rendered = (
-        f"{title}\n\n"
-        "```text\n"
-        f"{body}\n"
-        "```"
-    )
+    rendered = f"{title}\n\n```text\n{body}\n```"
     if len(rendered) > MAX_AGENDA_CHARS:
-        rendered = (
-            rendered[:MAX_AGENDA_CHARS]
-            + "\n... [Conteúdo truncado.]\n```"
-        )
+        rendered = rendered[:MAX_AGENDA_CHARS] + "\n... [Conteúdo truncado.]\n```"
     return rendered
 
 
@@ -40,16 +32,12 @@ def register_view_tools(mcp: FastMCP) -> None:
         formato = "{start-end-time-style} {title}"
         comando = ["list", "today", params.period, "-f", formato]
         try:
-            res = executar_comando_khal(
-                comando, tool_name="khan_view_agenda"
-            )
+            res = executar_comando_khal(comando, tool_name="khan_view_agenda")
         except KhanError as exc:
             return f"{exc}"
         if not res.stdout:
             return res.stdout or "No events."
-        return _short_render(
-            f"📅 **Your Agenda ({params.period}):**", res.stdout
-        )
+        return _short_render(f"📅 **Your Agenda ({params.period}):**", res.stdout)
 
     @mcp.tool("khan_view_calendar")
     def view_calendar_grid(reference_month: str = "today") -> str:
@@ -64,13 +52,9 @@ def register_view_tools(mcp: FastMCP) -> None:
         params = ViewCalendarInput(reference_month=reference_month)
         comando = ["calendar", params.reference_month]
         try:
-            res = executar_comando_khal(
-                comando, tool_name="khan_view_calendar"
-            )
+            res = executar_comando_khal(comando, tool_name="khan_view_calendar")
         except KhanError as exc:
             return f"{exc}"
         if not res.stdout:
             return "No calendar data."
-        return _short_render(
-            "🗓️ **Monthly View:**", res.stdout
-        )
+        return _short_render("🗓️ **Monthly View:**", res.stdout)

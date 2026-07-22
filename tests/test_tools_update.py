@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from percival_khan_calendar.adapters.khal_adapter import EventMatch
+
 from ._helpers import get_tool_fn
 
 

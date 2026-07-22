@@ -50,8 +50,5 @@ def register_update_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         except KhanError as exc:
             return f"{exc}"
 
-        body = (
-            f"Updated event {updated.format()} [uid={updated.uid}]\n"
-            "UID and RRULE preserved."
-        )
+        body = f"Updated event {updated.format()} [uid={updated.uid}]\nUID and RRULE preserved."
         return envelope_untrusted_data(body, f"Updated: {updated.summary}")

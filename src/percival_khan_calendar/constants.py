@@ -51,9 +51,7 @@ MAX_SHORT_STR_LEN: Final[int] = 64
 # Subprocess defaults.
 # ---------------------------------------------------------------------------
 
-DEFAULT_SUBPROCESS_TIMEOUT: Final[float] = float(
-    os.environ.get("KHAN_SUBPROCESS_TIMEOUT", "15")
-)
+DEFAULT_SUBPROCESS_TIMEOUT: Final[float] = float(os.environ.get("KHAN_SUBPROCESS_TIMEOUT", "15"))
 LOCK_TIMEOUT: Final[float] = 5.0
 
 # ---------------------------------------------------------------------------
@@ -65,9 +63,7 @@ LOCALE: Final[dict[str, str]] = {
     "dateformat": os.environ.get("KHAN_DATEFORMAT", "%d/%m/%Y"),
     "longdateformat": os.environ.get("KHAN_LONGDATEFORMAT", "%d/%m/%Y"),
     "datetimeformat": os.environ.get("KHAN_DATETIMEFORMAT", "%d/%m/%Y %H:%M"),
-    "longdatetimeformat": os.environ.get(
-        "KHAN_LONGDATETIMEFORMAT", "%d/%m/%Y %H:%M"
-    ),
+    "longdatetimeformat": os.environ.get("KHAN_LONGDATETIMEFORMAT", "%d/%m/%Y %H:%M"),
 }
 
 # ---------------------------------------------------------------------------
@@ -78,14 +74,14 @@ ALLOWED_ALARM_PATTERN: Final[str] = r"^\d+[smhd]$"
 ALLOWED_RECURRENCE_VALUES: Final[frozenset[str]] = frozenset(
     {"daily", "weekly", "monthly", "yearly"}
 )
-ALLOWED_AGENDA_PERIODS: Final[frozenset[str]] = frozenset(
-    {"today", "tomorrow", "7d", "30d"}
-)
+ALLOWED_AGENDA_PERIODS: Final[frozenset[str]] = frozenset({"today", "tomorrow", "7d", "30d"})
 
 # ---------------------------------------------------------------------------
 # Locking (Fase 6).
 # ---------------------------------------------------------------------------
 
-ENABLE_LOCK: Final[bool] = (
-    os.environ.get("KHAN_ENABLE_LOCK", "true").lower() in ("1", "true", "yes")
+ENABLE_LOCK: Final[bool] = os.environ.get("KHAN_ENABLE_LOCK", "true").lower() in (
+    "1",
+    "true",
+    "yes",
 )

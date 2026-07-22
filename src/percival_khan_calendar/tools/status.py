@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import logging
-import shutil
-import time
 from pathlib import Path
 
 from fastmcp import FastMCP
 
 from .. import constants
-from ..adapters.khal_adapter import KhalAdapter
 from ..adapters.subprocess_runner import executar_comando_khal
 from ..exceptions import KhanError
 from ..security import envelope_untrusted_data
@@ -40,14 +37,10 @@ def register_status_tools(mcp: FastMCP) -> None:
     def list_calendars() -> str:
         """List the calendars configured in khal.conf."""
         try:
-            res = executar_comando_khal(
-                ["printcalendars"], tool_name="khan_list_calendars"
-            )
+            res = executar_comando_khal(["printcalendars"], tool_name="khan_list_calendars")
         except KhanError as exc:
             return f"{exc}"
-        return envelope_untrusted_data(
-            res.stdout or "(no calendars)", "Available calendars"
-        )
+        return envelope_untrusted_data(res.stdout or "(no calendars)", "Available calendars")
 
     @mcp.tool("khan_export_ics")
     def export_ics(output_path: str = "") -> str:
