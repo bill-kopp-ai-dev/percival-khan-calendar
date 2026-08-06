@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from ..adapters.khal_adapter import EventMatch, KhalAdapter
 from ..adapters.subprocess_runner import executar_comando_khal
+from ..date_normalization import normalize_date_to_br
 from ..exceptions import KhanError
 from ..models import ListEventsInput, SearchEventsInput
 from ..security import envelope_untrusted_data
@@ -31,9 +32,12 @@ def register_list_events_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
 
         Parameters:
         - start_date: Starting point for the list. Supports 'today',
-          'tomorrow', 'now', or specific dates like 'DD/MM/YYYY'.
+          'tomorrow', 'now', or specific dates like 'DD/MM/YYYY' or
+          'YYYY-MM-DD' (ISO). ISO is normalized to the workspace's
+          configured ``dateformat`` (typically ``DD/MM/YYYY``) before
+          being passed to khal.
         - range_or_end (optional): Duration (e.g., '7d', '1w', '30d')
-          or a specific end date ('DD/MM/YYYY').
+          or a specific end date ('DD/MM/YYYY' or 'YYYY-MM-DD').
         """
         try:
             params = ListEventsInput(
@@ -42,9 +46,18 @@ def register_list_events_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
             )
         except ValidationError as exc:
             return _validation_error_response(exc, "khan_list_events")
-        comando = ["list", params.start_date]
-        if params.range_or_end:
-            comando.append(params.range_or_end)
+        # Round-8 fix (issue 2026-08-06-khan-list-events-date-parsing):
+        # khal 0.14.0 with `dateformat = %d/%m/%Y` rejects ISO dates like
+        # ``2026-08-06`` with ``critical: Could not parse``. We translate
+        # ISO to BR here so callers can use either form. Pass-through for
+        # relative terms (``today``/``tomorrow``/``now``), durations
+        # (``7d``/``1w``/``30d``), and BR literals — those don't depend
+        # on the configured dateformat.
+        start_normalized = normalize_date_to_br(params.start_date)
+        end_normalized = normalize_date_to_br(params.range_or_end)
+        comando = ["list", start_normalized]
+        if end_normalized:
+            comando.append(end_normalized)
         try:
             res = executar_comando_khal(
                 comando,

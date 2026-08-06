@@ -83,6 +83,38 @@ class TestExitCode:
         with pytest.raises(KhanValidationError):
             executar_comando_khal(["bogus"], tool_name="t")
 
+    def test_could_not_parse_is_validation(self, patched_runner):
+        """Round-8 fix: khal emits ``critical: Could not parse ...`` when
+        a date doesn't match the configured ``dateformat``. Without this
+        branch the message falls through to ``KhanInfrastructureError``
+        and the agent sees a runtime-looking error instead of a
+        recoverable input error.
+        """
+        stderr = (
+            "critical: Could not parse \"('2026-08-06', '2d')\".\n"
+            "critical: Please check your configuration or run `khal "
+            "printformats` to see if this does match your configured "
+            "[long](date|time|datetime)format.\n"
+        )
+        patched_runner.return_value = _mk_proc(returncode=1, stderr=stderr)
+        with pytest.raises(KhanValidationError, match="Could not parse"):
+            executar_comando_khal(["list", "2026-08-06", "2d"], tool_name="t")
+
+    def test_generic_critical_prefix_is_validation(self, patched_runner):
+        """Any ``critical:`` stderr is treated as recoverable user input.
+
+        khal's CLI uses ``critical:`` as the standard prefix for
+        malformed-command errors (anything the user typed wrong). This
+        is broader than ``Could not parse`` but still recoverable, so
+        the agent gets a proper ``KhanValidationError`` signal instead
+        of mis-classifying as infrastructure failure.
+        """
+        patched_runner.return_value = _mk_proc(
+            returncode=1, stderr="critical: unknown argument 'foo'"
+        )
+        with pytest.raises(KhanValidationError, match="critical: unknown argument"):
+            executar_comando_khal(["bogus"], tool_name="t")
+
 
 class TestFileNotFound:
     def test_binary_missing(self, patched_runner):

@@ -210,11 +210,21 @@ def executar_comando_khal(
                 )
 
             stderr = _decode(proc.stderr)
+            # Round-8 fix (issue 2026-08-06-khan-list-events-date-parsing):
+            # khal 0.14.0 emits ``critical: Could not parse ...`` (returncode 1)
+            # when the date input doesn't match the configured ``dateformat``.
+            # Without this branch the message falls through to
+            # ``KhanInfrastructureError`` and the agent sees a runtime-looking
+            # error instead of a recoverable input error. We also catch
+            # ``critical:`` generically as a fallback because it's khal's
+            # standard user-error prefix for any malformed command input.
             if (
                 proc.returncode == 2
                 or "Usage:" in stderr
                 or "error:" in stderr.lower()
                 or "invalid" in stderr.lower()
+                or "Could not parse" in stderr
+                or "critical:" in stderr
             ):
                 raise KhanValidationError(
                     f"khal rejected the command: {stderr or _decode(proc.stdout)}"
