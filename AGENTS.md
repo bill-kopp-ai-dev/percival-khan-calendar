@@ -46,7 +46,7 @@ re-reads on the next turn.
   validar `khan_get_status` + um create/list/delete ponta-a-ponta + export
   `.ics`. Requer workspace de teste configurado.
 
-## MCP contract surface (v0.3.0)
+## MCP contract surface (stable since v0.2.3; preserved verbatim in v0.4.0)
 
 - **Tools (12):** `khan_list_events`, `khan_search_events`, `khan_get_event`,
   `khan_view_agenda`, `khan_view_calendar`, `khan_list_calendars`,
@@ -73,9 +73,9 @@ Nanobot antes de versionar.
 
 ## Open questions
 
-- **Versionamento pos round-9:** `pyproject.toml` ja bumpado para
-  `0.4.0`; `CHANGELOG.md` e `README.md` atualizados; ainda sem tag
-  Git. Decidir se a tag sai junto com o commit de release.
+- **Versionamento pos round-9:** tag anotada `v0.4.0` criada em
+  `699072b` (HEAD local). `origin/main` ainda em `7f083b5` ate o
+  push ser autorizado.
 - **Refresh README:** badges atualizados em v0.4.0 para 220 tests /
   87.47% coverage; secao "🐳 Docker (v0.4.0)" nova.
 - **Docker empacotamento:** **entregue em v0.4.0**. Multi-stage

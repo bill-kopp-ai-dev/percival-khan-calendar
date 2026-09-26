@@ -96,15 +96,16 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
 
 ## Open questions
 
-- **Release 0.4.0 em flight:** HEAD = `7f083b5` (round-9 audit).
-  `pyproject.toml` ja bumpado para `0.4.0`; `CHANGELOG.md` tem a
-  entrada completa (incluindo Docker packaging); `README.md` tem
-  secao "🐳 Docker (v0.4.0)" e badges atualizados (220 tests /
-  87.47% coverage). Working tree ainda sujo com a bateria do release;
-  falta commit + tag. Tudo verificado localmente:
-  `uv run pytest` verde, `ruff check .` limpo, `ruff format --check .`
-  limpo, `docker build` + `docker run --version` + `docker inspect`
-  verdes (ver AGENTS.md / CHANGELOG para detalhes).
+- **Release 0.4.0 (tagged 2026-09-26):** tag anotada `v0.4.0` em
+  `699072b` (HEAD local). 4 commits granulares: `feat(server)`
+  CLI `--version`/`--help`, `feat(docker)` Dockerfile/compose/CI,
+  `docs(release)` notas + sync, `chore(release)` bump + lockfile.
+  Contrato MCP preservado (12 tools + 6 prompts + 1 resource).
+  Tudo verificado localmente: `uv run pytest` verde (220 passed /
+  87.47%), `ruff check .` + `ruff format --check .` limpos,
+  `docker build` + `docker run --version` + `docker inspect` + smoke
+  via `docker compose run --rm server --version` verdes. Pendente:
+  autorizacao para `git push origin main && git push origin v0.4.0`.
 - **Docker empacotamento:** **entregue em v0.4.0**. Espelha o padrao
   `percival-agentmail-mcp` (multi-stage uv + python:3.12-slim, stdio
   MCP, OCI labels, UID 1000, env defaults via `:-`, sem `khal`

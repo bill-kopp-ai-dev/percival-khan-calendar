@@ -19,7 +19,8 @@ This server is part of the **percival.OS** ecosystem — a Personal
 Agentic Operating System designed for autonomy, security, and absolute
 privacy.
 
-As of **v0.3.0** the server exposes a complete MCP surface:
+Since **v0.2.3** and unchanged in **v0.4.0**, the server exposes the
+following MCP surface:
 - **12 tools** for CRUD + visualisation + admin,
 - **6 prompt primitives** to inject workflows and field semantics
   into the agent's reasoning,
@@ -77,7 +78,7 @@ Total: **12 tools**.
 
 ---
 
-## 🧭 MCP Prompts (v0.3.0)
+## 🧭 MCP Prompts (stable since v0.2.3)
 
 The server registers **6 prompt primitives** that the agent can pull
 via `prompts/get` whenever it needs explicit guidance on workflows or
@@ -104,7 +105,7 @@ rendered = mcp.get_prompt(
 
 ---
 
-## 📂 MCP Resources (v0.3.0)
+## 📂 MCP Resources (stable since v0.2.3)
 
 A single static Markdown reference is available at `khan://schema/main`
 (MIME `text/markdown`). The agent reads this **on demand** when it
@@ -155,7 +156,7 @@ This release includes three rounds of bug fixes and feature work:
   a fresh `FastMCP` instance instead of reusing the module-level
   global.
 
-Coverage: **87.17%**. Tests: **181 unit + 2 integration**.
+Coverage: **87.47%**. Tests: **220 unit + 2 integration** (opt-in).
 
 ---
 
@@ -482,9 +483,9 @@ src/percival_khan_calendar/
 │   ├── create_event.py, delete_event.py, delete_event_safe.py
 │   ├── export_ics.py, list_calendars.py, list_events.py
 │   ├── search_events.py, status.py, update_event.py, view.py
-│   └── prompts.py          # 6 primitive prompts (v0.3.0)
+│   └── prompts.py          # 6 primitive prompts
 └── resources/
-    └── docs.py             # khan://schema/main (v0.3.0)
+    └── docs.py             # khan://schema/main (text/markdown)
 ```
 
 ---
@@ -555,7 +556,7 @@ keep getting denied, check umask and parent directory ownership.
 ```bash
 uv sync --extra test
 uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
-# 181 passed in ~5s; coverage 87.17%
+# 220 passed in ~7s; coverage 87.47%
 ```
 
 ---
@@ -563,8 +564,8 @@ uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
 ## 📜 Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full history. Current
-release: **0.3.0** (documentation refresh + post-v0.2.0 fix
-preservation).
+release: **0.4.0** (Docker packaging + CLI smoke surface;
+contract preserved verbatim from v0.2.3).
 
 ---
 *Developed with ❤️ by the percival.OS Team*
