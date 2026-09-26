@@ -46,14 +46,10 @@ class TestIsoToBr:
         assert normalize_date_to_br("2026-08-06T14:30:00") == "06/08/2026"
 
     def test_iso_datetime_with_tz_drops_time_and_tz(self) -> None:
-        assert (
-            normalize_date_to_br("2026-08-06T14:30:00+02:00") == "06/08/2026"
-        )
+        assert normalize_date_to_br("2026-08-06T14:30:00+02:00") == "06/08/2026"
 
     def test_iso_datetime_microseconds_drops_time(self) -> None:
-        assert (
-            normalize_date_to_br("2026-08-06T14:30:00.123456") == "06/08/2026"
-        )
+        assert normalize_date_to_br("2026-08-06T14:30:00.123456") == "06/08/2026"
 
 
 class TestPassThrough:

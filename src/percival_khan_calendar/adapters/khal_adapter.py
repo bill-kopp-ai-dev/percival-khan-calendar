@@ -416,15 +416,11 @@ class KhalAdapter:
         # Acquire lock up-front; the find and delete both happen inside
         # it so two concurrent calls cannot see the same event twice.
         with workspace_lock(blocking=True):
-            matches = self.find_event(term)
-            if len(matches) != 1:
-                # Reuse the unique path to surface a typed error to the
-                # agent (NotFound or AmbiguousMatch).
-                self.find_event_unique(term)
-                # The branch above is unreachable since find_event_unique
-                # always raises; keeps the explicit assertion for readers.
-                raise AssertionError  # pragma: no cover
-            m = matches[0]
+            # ``find_event_unique`` raises ``KhanNotFoundError`` (zero
+            # matches) or ``KhanAmbiguousMatchError`` (>1 match). Both
+            # are typed errors the caller already handles; the result
+            # below is reached only when exactly one match exists.
+            m = self.find_event_unique(term)
             if not confirm:
                 return (
                     "DRY-RUN\n"

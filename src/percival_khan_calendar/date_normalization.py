@@ -37,9 +37,7 @@ from typing import Final
 #                          ``2026-08-06T14:30:00+02:00``.
 # Examples that do NOT match: ``06/08/2026``, ``today``, ``7d``, ``-1d``,
 #                             ``2026/08/06``, ``2026-8-6``.
-_ISO_DATE_RE: Final[re.Pattern[str]] = re.compile(
-    r"^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$"
-)
+_ISO_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$")
 
 
 def normalize_date_to_br(value: str) -> str:

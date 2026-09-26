@@ -75,3 +75,27 @@ def test_export_ics_rejects_path_traversal(status_app, isolated_workspace):
     fn = get_tool_fn(status_app, "khan_export_ics")
     out = fn(output_path="/etc/passwd")
     assert "Refused" in out
+
+
+def test_export_ics_event_count_is_accurate(status_app, isolated_workspace):
+    """Round-9 regression: ``khan_export_ics`` must report the number
+    of *VEVENT* components in the output, not the count of every
+    component the ``icalendar.Calendar`` walks (which includes the
+    outer VCALENDAR container and any VTIMEZONE sub-components — so a
+    freshly built Calendar with 3 events used to report "4 events").
+    """
+    import re
+
+    from percival_khan_calendar.adapters.khal_adapter import KhalAdapter
+
+    a = KhalAdapter()
+    a.write_event(title="C1", start="today 10:00")
+    a.write_event(title="C2", start="today 11:00")
+    a.write_event(title="C3", start="today 12:00")
+
+    fn = get_tool_fn(status_app, "khan_export_ics")
+    out = fn()
+    # ``Exported 3 events to 'export.ics'.`` — exactly three, not four.
+    m = re.search(r"Exported (\d+) events", out)
+    assert m is not None, f"no event count in output: {out!r}"
+    assert int(m.group(1)) == 3, f"event_count drifted (counted non-VEVENT components?): {out!r}"

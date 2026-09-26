@@ -113,12 +113,18 @@ def register_status_tools(mcp: FastMCP) -> None:
                 cal.add("version", "2.0")
                 for ics in constants.DATA_DIR.rglob("*.ics"):
                     sub = Calendar.from_ical(ics.read_bytes())
-                    for ev in sub.walk():
+                    # Only ``VEVENT`` records — ``sub.walk()`` would also
+                    # yield the outer ``VCALENDAR`` wrapper, which we'd
+                    # nest under our top-level ``VCALENDAR`` and which
+                    # then re-yields the same VEVENTs at deeper levels
+                    # (round-9 regression: 3 events reported as 6 or
+                    # 10 depending on nesting depth).
+                    for ev in sub.walk("VEVENT"):
                         cal.add_component(ev)
                 body = cal.to_ical()
                 # Capture the event count while still holding the lock
                 # so we don't recount after the write succeeds.
-                event_count = sum(1 for _ in cal.walk())
+                event_count = sum(1 for _ in cal.walk("VEVENT"))
                 if len(body) > constants.EXPORT_MAX_BYTES:
                     return (
                         f"[recoverable_by_agent=false] export too large: "

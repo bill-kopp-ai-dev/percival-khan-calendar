@@ -128,9 +128,7 @@ def test_search_events_rejects_dash(tool_app, isolated_workspace):
 # before invoking khal, so callers can pass either form.
 
 
-def test_list_events_iso_start_date_normalized_to_br(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_iso_start_date_normalized_to_br(tool_app, monkeypatch, isolated_workspace):
     """ISO ``2026-08-06`` start_date must reach khal as BR ``06/08/2026``.
 
     Regression for the original probe call:
@@ -154,9 +152,7 @@ def test_list_events_iso_start_date_normalized_to_br(
     assert captured["cmd"][-1] == "2d"
 
 
-def test_list_events_iso_range_or_end_normalized_to_br(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_iso_range_or_end_normalized_to_br(tool_app, monkeypatch, isolated_workspace):
     """ISO in ``range_or_end`` is also normalized; relative durations pass through."""
     captured = {}
 
@@ -174,9 +170,7 @@ def test_list_events_iso_range_or_end_normalized_to_br(
     assert captured["cmd"][-1] == "08/08/2026"
 
 
-def test_list_events_br_literal_passes_through_unchanged(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_br_literal_passes_through_unchanged(tool_app, monkeypatch, isolated_workspace):
     """BR literals are passed through unchanged (idempotent)."""
     captured = {}
 
@@ -194,9 +188,7 @@ def test_list_events_br_literal_passes_through_unchanged(
     assert captured["cmd"][-1] == "08/08/2026"
 
 
-def test_list_events_relative_term_passes_through(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_relative_term_passes_through(tool_app, monkeypatch, isolated_workspace):
     """Relative terms (``today``) and durations (``7d``) are untouched."""
     captured = {}
 
@@ -214,9 +206,7 @@ def test_list_events_relative_term_passes_through(
     assert captured["cmd"][-1] == "7d"
 
 
-def test_list_events_mixed_iso_start_br_end(
-    tool_app, monkeypatch, isolated_workspace
-):
+def test_list_events_mixed_iso_start_br_end(tool_app, monkeypatch, isolated_workspace):
     """ISO start + BR end is normalized in place; khal sees both as BR."""
     captured = {}
 

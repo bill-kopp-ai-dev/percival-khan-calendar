@@ -158,7 +158,7 @@ is FastMCP 3.4 behaviour, not a server bug).
 ```
 src/percival_khan_calendar/
 ├── constants.py            # all Final[Path] / Final[str] knobs
-├── exceptions.py           # 4 typed exceptions
+├── exceptions.py           # 6 typed exceptions (KhanError + 5 subclasses)
 ├── lifecycle.py            # setup_workspace + auto-heal
 ├── security.py             # envelope_untrusted_data + argument guard
 ├── server.py               # FastMCP entrypoint (fresh instance per boot)
@@ -169,10 +169,9 @@ src/percival_khan_calendar/
 │   └── subprocess_runner.py    # executar_comando_khal + env passing
 ├── tools/
 │   ├── create_event.py         # khan_create_event
-│   ├── delete_event.py         # khan_delete_event + khan_delete_event_safe
-│   ├── list_events.py          # khan_list_events + khan_get_event + khan_search_events
-│   ├── export_ics.py           # khan_export_ics
-│   ├── status.py               # khan_get_status + khan_list_calendars
+│   ├── delete_event.py         # khan_delete_event + khan_delete_event_safe + khan_get_event
+│   ├── list_events.py          # khan_list_events + khan_search_events
+│   ├── status.py               # khan_get_status + khan_list_calendars + khan_export_ics
 │   ├── update_event.py         # khan_update_event
 │   ├── view.py                 # khan_view_agenda + khan_view_calendar
 │   └── prompts.py              # 6 prompts (khan_overview, …)

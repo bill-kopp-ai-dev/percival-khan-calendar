@@ -52,7 +52,6 @@ MAX_SHORT_STR_LEN: Final[int] = 64
 # ---------------------------------------------------------------------------
 
 DEFAULT_SUBPROCESS_TIMEOUT: Final[float] = float(os.environ.get("KHAN_SUBPROCESS_TIMEOUT", "15"))
-LOCK_TIMEOUT: Final[float] = 5.0
 
 # ---------------------------------------------------------------------------
 # Locale (default BR; can be overridden via env when generating khal.conf).

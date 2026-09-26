@@ -231,8 +231,12 @@ Key rules:
    the candidates; either pick a more specific ``old_term`` or use
    a UID.
 3. Only the fields you supply are updated. Omitted fields stay at
-   their current value. To "remove" a description, pass
-   ``new_description=""`` — empty string is treated as ``None``.
+   their current value. **Empty string is a no-op, not a delete:**
+   passing ``new_description=""`` leaves the description exactly as
+   it is (the adapter's update loop skips ``None`` and ``""``). To
+   actually remove a field, recreate the event with ``khan_create_event``
+   and no value for that field — ``khan_update_event`` cannot clear
+   a field it was given.
 4. Datetime is normalised to UTC via ``khan_get_status``. The
    on-disk file will serialise DTSTART as ``YYYYMMDDTHHMMSSZ``.
 

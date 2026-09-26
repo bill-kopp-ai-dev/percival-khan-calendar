@@ -111,6 +111,36 @@ class TestPromptRender:
         assert "UID" in body
         assert "KhanAmbiguousMatchError" in body
 
+    def test_khan_update_workflow_documents_empty_string_is_no_op(self, mcp_app):
+        """Round-9 regression: ``khan_update_workflow`` previously
+        claimed empty-string fields would be treated as ``None`` (a
+        "remove" semantic). The adapter actually treats ``""`` as a
+        no-op (``value is None or value == "" → continue``). If the
+        prompt and the adapter disagree, the agent sends ``""``
+        expecting "remove" and gets the field preserved, with no
+        error to clue it in. We pin the prompt's documentation to
+        the *actual* behaviour so the agent stops being misled.
+        """
+
+        async def go():
+            return await mcp_app.render_prompt("khan_update_workflow", {})
+
+        body = asyncio.run(go()).messages[0].content.text
+        # The prompt MUST NOT say empty string removes the field.
+        assert "empty string is treated as `None`" not in body, (
+            "Prompt still lies about '' semantics; the adapter treats "
+            "'' as 'do not change this field', not 'remove'."
+        )
+        # And it MUST tell the agent that '' is a no-op.
+        assert (
+            "no-op" in body.lower()
+            or "no change" in body.lower()
+            or ("do not change" in body.lower())
+        ), (
+            "Prompt must document that empty string fields are left "
+            "unchanged (round-9 doc-vs-behaviour fix)."
+        )
+
     def test_khan_delete_with_confirmation_enforces_dry_run(self, mcp_app):
         async def go():
             return await mcp_app.render_prompt("khan_delete_with_confirmation", {})
@@ -188,7 +218,48 @@ class TestPromptRender:
 # ---------------------------------------------------------------------------
 
 
-class TestSchemaResource:
+def test_schema_resource_documents_real_files_and_exceptions(mcp_app):
+    """Round-9 regression: the ``khan://schema/main`` resource used to
+    list a non-existent ``tools/export_ics.py`` (the tool lives in
+    ``tools/status.py``) and to say ``khan_get_event`` lived in
+    ``list_events.py`` (it lives in ``tools/delete_event.py``). It
+    also claimed ``exceptions.py`` exposes 4 typed exceptions when
+    the module in fact defines 6 (KhanError, KhanValidationError,
+    KhanNotFoundError, KhanAmbiguousMatchError, KhanInfrastructureError,
+    KhanLockError). The agent reads this resource as the canonical
+    reference, so any of these lies become operational bugs.
+    """
+    import asyncio
+    from pathlib import Path
+
+    src = Path("src/percival_khan_calendar")
+
+    async def go():
+        return await mcp_app.read_resource(str(SCHEMA_URI))
+
+    result = asyncio.run(go())
+    contents = getattr(result, "contents", None) or result
+    text = getattr(contents[0], "text", str(contents[0]))
+
+    # Stale ``tools/export_ics.py`` reference MUST NOT appear.
+    assert "tools/export_ics.py" not in text, (
+        "schema document still references the non-existent "
+        "tools/export_ics.py — khan_export_ics lives in tools/status.py."
+    )
+    # ``khan_get_event`` lives in delete_event.py, not list_events.py.
+    assert "tools/list_events.py" not in text, (
+        "schema document still attributes tools (likely khan_get_event) "
+        "to list_events.py; that tool is registered in delete_event.py."
+    )
+    # The exception count claim must match reality.
+    assert "4 typed exceptions" not in text, (
+        "schema document says '4 typed exceptions'; exceptions.py "
+        "actually defines 6 (KhanError + 5 subclasses)."
+    )
+    # And the file it claims to describe must exist on disk.
+    assert (src / "tools" / "delete_event.py").is_file()
+    assert (src / "tools" / "status.py").is_file()
+
     def test_resource_listed(self, mcp_app):
         async def go():
             return await mcp_app.list_resources()

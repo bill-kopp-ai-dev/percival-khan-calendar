@@ -1,6 +1,6 @@
 """Percival Khan Calendar MCP Server — entrypoint.
 
-This module is intentionally thin: ~50 LOC. All real logic lives in
+This module is intentionally thin: ~70 LOC. All real logic lives in
 ``models``, ``exceptions``, ``security``, ``lifecycle`` and the
 ``tools`` / ``adapters`` / ``resources`` packages.
 
