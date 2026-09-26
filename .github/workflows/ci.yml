@@ -43,3 +43,55 @@ jobs:
             --cov=src/percival_khan_calendar \
             --cov-report=term-missing \
             --cov-fail-under=80
+
+  docker:
+    name: Docker build + smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up BuildKit
+        uses: docker/setup-buildx-action@v3
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          # SemVer from pyproject.toml — single source of truth.
+          VERSION=$(grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            GIT_SHA=${{ steps.meta.outputs.short_sha }}
+          tags: percival-khan-calendar:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke (--version exits 0)
+        run: |
+          set -euo pipefail
+          output=$(docker run --rm percival-khan-calendar:ci --version)
+          echo "$output"
+          # `-F` (fixed string) is intentional: the SemVer is literal,
+          # not a regex, and a future non-numeric build suffix would
+          # otherwise need escaping.
+          echo "$output" | grep -Fq "Percival Khan Calendar MCP Server version ${{ steps.meta.outputs.version }}"
+      - name: Smoke (--help exits 0)
+        run: |
+          set -euo pipefail
+          output=$(docker run --rm percival-khan-calendar:ci --help)
+          echo "$output" | grep -Fq "Model Context Protocol"
+      - name: Inspect image (sanity)
+        run: |
+          echo "=== Size ==="
+          docker images percival-khan-calendar:ci --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}"
+          echo "=== User ==="
+          docker inspect percival-khan-calendar:ci --format '{{.Config.User}}'
+          echo "=== Entrypoint ==="
+          docker inspect percival-khan-calendar:ci --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}'
+          echo "=== OCI labels ==="
+          docker inspect percival-khan-calendar:ci --format '{{json .Config.Labels}}' | python3 -m json.tool

@@ -1,0 +1,91 @@
+# docker-compose.yml — local development recipe for the Percival
+# Khan Calendar MCP server.
+#
+# This file is the canonical way to run the server as a stdio MCP
+# transport, ready to plug into Nanobot, opencode, Claude Desktop,
+# VS Code, the Docker MCP Toolkit gateway, or any other MCP-aware
+# client.
+#
+# Quick start
+# -----------
+#   1. (optional) Copy `.env.example` to `.env` if you want to override
+#      KHAN_LOG_LEVEL / KHAN_SUBPROCESS_TIMEOUT.
+#   2. Build the image:   docker compose build
+#   3. Smoke (offline):   docker compose run --rm server --version
+#   4. Spawn stdio:       docker compose run --rm server
+#
+# Wiring into Nanobot (`~/.nanobot/config.json`)
+# ----------------------------------------------
+#   {
+#     "tools": {
+#       "mcpServers": {
+#         "percival-khan-calendar": {
+#           "command": "docker",
+#           "args": [
+#             "compose", "-f", "/path/to/percival-khan-calendar/docker-compose.yml",
+#             "run", "--rm", "server"
+#           ],
+#           "env": {}
+#         }
+#       }
+#     }
+#   }
+#
+# Wiring into opencode (`.opencode/opencode.json` or `opencode.json`)
+# --------------------------------------------------------------------
+#   {
+#     "mcp": {
+#       "percival-khan-calendar": {
+#         "type": "local",
+#         "command": ["docker", "compose", "-f",
+#                     "/path/to/percival-khan-calendar/docker-compose.yml",
+#                     "run", "--rm", "server"],
+#         "environment": {}
+#       }
+#     }
+#   }
+#
+# Or use the image directly (no compose):
+#   docker run --rm -i --user $(id -u):$(id -g) \
+#     -v ~/.nanobot/workspace/khalCalendar:/data \
+#     percival-khan-calendar:dev
+#
+# Scope note
+# ----------
+# The khal binary is NOT bundled in the image. The adapter-only
+# tools (khan_create_event / khan_update_event / khan_delete_event_*
+# / khan_export_ics / khan_get_event) work without khal. The
+# khal-CLI-backed tools (khan_list_events / khan_view_agenda /
+# khan_view_calendar / khan_list_calendars) require khal on the host
+# PATH; bind-mount it or symlink it in.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: "0.4.0"
+        GIT_SHA: "local"
+    image: percival-khan-calendar:dev
+    init: true
+    stdin_open: true
+    tty: false
+    env_file:
+      # Long form: the file is *optional*. The inline `environment`
+      # block below already supplies safe defaults via ``:-`` so the
+      # stack works out-of-the-box without a `.env`. Power users can
+      # still drop in `.env` (or symlink `.env.example`) to override.
+      - path: ./.env
+        required: false
+    environment:
+      # env_file values are loaded first; explicit overrides here make
+      # CI / smoke runs reproducible when `.env` is absent.
+      KHAN_WORKSPACE_DIR: /data
+      KHAN_ENABLE_LOCK: ${KHAN_ENABLE_LOCK:-false}
+      KHAN_LOG_LEVEL: ${KHAN_LOG_LEVEL:-INFO}
+      KHAN_SUBPROCESS_TIMEOUT: ${KHAN_SUBPROCESS_TIMEOUT:-15}
+    volumes:
+      # Bind-mount the host calendar so events persist across container runs.
+      # Adjust the source path to your real ~/.nanobot/workspace/khalCalendar.
+      - ~/.nanobot/workspace/khalCalendar:/data
