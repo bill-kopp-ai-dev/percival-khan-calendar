@@ -1,11 +1,12 @@
 # 🤖 Percival Khan Calendar — percival.OS MCP
 
-**Version 0.3.0**
+**Version 0.4.0**
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
 [![MCP](https://img.shields.io/badge/mcp-server-blue.svg)]()
-[![Tests](https://img.shields.io/badge/tests-181%2F181-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-87.17%25-green.svg)]()
+[![Tests](https://img.shields.io/badge/tests-220%2F220-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-87.47%25-green.svg)]()
+[![Docker](https://img.shields.io/badge/docker-stdio%20MCP-blue.svg)]()
 [![percival.OS](https://img.shields.io/badge/percival.OS-ecosystem-orange.svg)](https://github.com/bill-kopp-ai-dev/percival.OS)
 
 ## 📋 Description
@@ -293,6 +294,173 @@ Lint and format:
 uv run --with ruff ruff check .
 uv run --with ruff ruff format .
 ```
+
+---
+
+## 🐳 Docker (v0.4.0)
+
+A multi-stage `Dockerfile` is shipped from v0.4.0 onward. The resulting
+image is a self-contained stdio MCP server (non-root UID 1000, no
+exposed ports, ~330 MB on python:3.12-slim) that plugs into Nanobot,
+opencode, the Docker MCP Toolkit gateway, Claude Desktop, VS Code, or
+any MCP-aware client.
+
+> **Scope note.** This cycle ships a **local-first** image only: no
+> `server.yaml` / `tools.json`, no submission to the official
+> [Docker MCP Registry](https://hub.docker.com/mcp) yet. The image
+> runs against Nanobot, opencode and the Docker MCP Toolkit gateway
+> (as a plain Docker image, not as a catalog entry).
+>
+> **About `khal`.** The `khal` binary is **not** bundled — bundling
+> it would inflate the image by ~150 MB. The adapter-only tools
+> (`khan_create_event`, `khan_update_event`, `khan_delete_event*`,
+> `khan_export_ics`, `khan_get_event`) work without `khal`. The
+> `khal`-CLI-backed tools (`khan_list_events`, `khan_view_agenda`,
+> `khan_view_calendar`, `khan_list_calendars`) require `khal` on
+> the host PATH — bind-mount it (`-v /usr/bin/khal:/usr/bin/khal:ro`)
+> or symlink it into the container.
+
+### Quick start
+
+```bash
+# 1. Build the image locally (VERSION is read from pyproject.toml).
+docker build --build-arg VERSION=0.4.0 --build-arg GIT_SHA=local \
+  -t percival-khan-calendar:dev .
+
+# 2. Smoke (offline, no network):
+docker run --rm percival-khan-calendar:dev --version
+# → Percival Khan Calendar MCP Server version 0.4.0
+
+# 3. Spawn stdio (the MCP client attaches via `docker run -i`):
+docker run --rm -i --user $(id -u):$(id -g) \
+  -v ~/.nanobot/workspace/khalCalendar:/data \
+  percival-khan-calendar:dev
+```
+
+### With `docker compose`
+
+The shipped `docker-compose.yml` binds `~/.nanobot/workspace/khalCalendar`
+to `/data` inside the container, exposes nothing, and spawns the server
+in stdio mode (`stdin_open: true`, `tty: false`):
+
+```bash
+docker compose build
+docker compose run --rm server --version
+docker compose run --rm server   # stdio MCP
+```
+
+### With Nanobot (`~/.nanobot/config.json`)
+
+```json
+{
+  "tools": {
+    "mcpServers": {
+      "percival-khan-calendar": {
+        "command": "docker",
+        "args": [
+          "compose", "-f",
+          "/path/to/percival-khan-calendar/docker-compose.yml",
+          "run", "--rm", "server"
+        ],
+        "env": {}
+      }
+    }
+  }
+}
+```
+
+Or without compose, pointing straight at the image:
+
+```json
+{
+  "tools": {
+    "mcpServers": {
+      "percival-khan-calendar": {
+        "command": "docker",
+        "args": [
+          "run", "--rm", "-i",
+          "-v", "~/.nanobot/workspace/khalCalendar:/data",
+          "percival-khan-calendar:dev"
+        ],
+        "env": {}
+      }
+    }
+  }
+}
+```
+
+### With opencode (`.opencode/opencode.json` or `opencode.json`)
+
+```json
+{
+  "mcp": {
+    "percival-khan-calendar": {
+      "type": "local",
+      "command": [
+        "docker", "compose", "-f",
+        "/path/to/percival-khan-calendar/docker-compose.yml",
+        "run", "--rm", "server"
+      ],
+      "environment": {}
+    }
+  }
+}
+```
+
+### With the Docker MCP Toolkit gateway
+
+The Docker MCP Toolkit organizes MCP servers into profiles. The
+easiest path is to add the image to a profile via the Desktop UI,
+or pre-register it with the CLI:
+
+```bash
+# Build the image once (the gateway expects it to be present).
+docker build -t percival-khan-calendar:dev .
+
+# Add to a profile — see https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/
+# (catalog submission is NOT shipped in v0.4.0; this is the manual path).
+docker mcp profile create khan-local --image percival-khan-calendar:dev
+```
+
+The MCP client (Claude Desktop, VS Code, Cursor, …) then attaches
+through the gateway:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "MCP_DOCKER": {
+        "command": "docker",
+        "args": ["mcp", "gateway", "run", "--profile", "khan-local"],
+        "type": "stdio"
+      }
+    }
+  }
+}
+```
+
+### Configuration
+
+The runtime reads the same environment variables the local install
+does — see `.env.example`. `KHAN_WORKSPACE_DIR` defaults to `/data`
+inside the container (bind-mount your host's
+`~/.nanobot/workspace/khalCalendar` to `/data`); `KHAN_ENABLE_LOCK`
+defaults to `false` because the bind-mounted host directory already
+serializes concurrent writers.
+
+Pass overrides via `--env-file .env`, `docker run -e KEY=VALUE …`,
+or the `environment:` / `env_file:` keys in `docker-compose.yml`.
+Secrets never end up baked into the image: `.dockerignore` blocks
+`.env*` from the build context.
+
+### CI
+
+`.github/workflows/ci.yml` runs a dedicated `docker` job that builds
+the image with BuildKit + GHA layer cache, then runs smoke checks
+(`--version` exits 0 with the SemVer from `pyproject.toml`,
+`khan_get_status` returns a non-empty operational response, and
+`docker inspect` confirms the non-root user, the stdio entrypoint,
+and the OCI labels).
 
 ---
 

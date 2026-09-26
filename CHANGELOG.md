@@ -10,6 +10,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refactor: roadmap published in `MCP_Docs/refactor_plans/percival-khan-calendar/`.
 
+## [0.4.0] - 2026-09-26
+
+### Added — Docker packaging (v0.4.0)
+
+- **Multi-stage `Dockerfile`** that produces a self-contained stdio
+  MCP image:
+  - **Builder stage** uses
+    `ghcr.io/astral-sh/uv:0.5.11-python3.12-bookworm-slim` and
+    installs the package in non-editable mode into `/app/.venv`,
+    so the runtime stage can copy the venv verbatim without
+    rebuilding dependencies.
+  - **Runtime stage** is `python:3.12-slim`, runs as a fixed
+    non-root user (UID/GID 1000, no shell, no password), speaks
+    stdio MCP over stdin/stdout (no EXPOSE, no HEALTHCHECK).
+  - **OCI image labels** (`org.opencontainers.image.title`,
+    `.description`, `.source`, `.documentation`, `.licenses`,
+    `.authors`, `.vendor`, `.version`, `.revision`) so registries,
+    scanners and `docker inspect` stay truthful across local dev
+    and CI builds.
+  - **Sensible runtime defaults** baked in:
+    `KHAN_WORKSPACE_DIR=/data`, `KHAN_ENABLE_LOCK=false`,
+    `KHAN_LOG_LEVEL=INFO`, `KHAN_SUBPROCESS_TIMEOUT=15`.
+- **`.dockerignore`** that mirrors the repository's `.gitignore`
+  plus `tests/`, IDE noise, Docker artefacts, `.positronic/` and
+  `scratch_*.py`; prevents accidental secret/`.env` embedding and
+  keeps the build context small.
+- **`docker-compose.yml`** local recipe: build + env_file + stdio
+  (`stdin_open: true`, `tty: false`); binds the host
+  `~/.nanobot/workspace/khalCalendar` to `/data` so events persist
+  across container runs. Ready for Nanobot, opencode, Claude
+  Desktop, VS Code, the Docker MCP Toolkit gateway or any
+  MCP-aware client.
+- **CLI `--version` / `--help`** added to `server.main()` so the
+  Docker smoke (`docker run --rm <image> --version`) can verify
+  the runtime is importable without spawning the MCP server.
+  Covered by `tests/test_server.py` (4 new tests).
+- **CI job `docker`** (`.github/workflows/ci.yml`):
+  - Resolves `VERSION` from `pyproject.toml` and `GIT_SHA` from
+    `GITHUB_SHA`, then builds with BuildKit + GHA layer cache.
+  - Smoke 1: `--version` exits 0 with the exact SemVer from
+    `pyproject.toml` (no regex, fixed-string `grep -F`).
+  - Smoke 2: `--help` exits 0 and mentions `Model Context Protocol`.
+  - Inspect: `docker inspect` reports non-root user, stdio
+    entrypoint, and the full set of OCI labels.
+- **README "🐳 Docker" section** with copy-paste recipes for
+  Nanobot, opencode and the Docker MCP Toolkit gateway, plus a
+  scope note explaining that `khal` is intentionally NOT bundled
+  in the image (the adapter-only tools work without it; the
+  `khal`-CLI-backed tools need the host `khal` on the bind-mount).
+
+### Scope note (deliberate non-goals for v0.4.0)
+
+- No submission to the official [Docker MCP Registry](https://hub.docker.com/mcp).
+  That requires `server.yaml` + `tools.json` and an external PR;
+  deferred to a follow-up release.
+- No `khal` inside the image. Adapter-only tools are fully
+  functional; CLI-backed tools require `khal` on the host PATH
+  (bind-mount `-v /usr/bin/khal:/usr/bin/khal:ro`).
+- No automatic `ghcr.io/bill-kopp-ai-dev/percival-khan-calendar`
+  push from CI; out of scope until a release process is agreed.
+
+### Tests
+
+- 216 → **220 passed** (+4: `test_version_flag_prints_semver`,
+  `test_help_flag_mentions_mcp_protocol`, `test_parser_has_version_and_help`,
+  `test_version_path_does_not_invoke_lifecycle`).
+- Coverage 87.33% → **87.47%** (server.py gained two new CLI
+  branches, both exercised).
+
 ## [0.2.1] - 2026-XX-XX (Round-6 follow-up)
 
 ### Fixed
