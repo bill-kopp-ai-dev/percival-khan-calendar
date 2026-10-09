@@ -37,7 +37,7 @@ ARG UV_VERSION=0.5.11
 # uv writes the virtualenv and console_script shebangs to /app/.venv
 # from the start. Copying the venv verbatim into the runtime stage
 # therefore preserves the absolute paths the scripts depend on.
-FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-bookworm-slim@sha256:cc9311ae7d42ccb51f6ac10c8ab8526de8a3f484b36349fd87af8e5ced7079c0 AS builder
 
 ARG VERSION=0.0.0
 ARG GIT_SHA=unknown
@@ -70,7 +70,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---------------------------------------------------------------------
 #  Stage 2 — runtime (slim Python, non-root, stdio MCP)
 # ---------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim AS runtime
+FROM python:${PYTHON_VERSION}-slim@sha256:2b4f19dae3a777dfc3b76730bda1e82e1f66ab2a2686fa93ca78edbfb4f04ffe AS runtime
+
+ARG DEBIAN_SNAPSHOT=20261005T000000Z
+RUN sed -i "s|http://deb.debian.org/debian-security|http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}|" /etc/apt/sources.list.d/debian.sources \
+    && sed -i "s|http://deb.debian.org/debian |http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/|" /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 ARG VERSION=0.0.0
 ARG GIT_SHA=unknown

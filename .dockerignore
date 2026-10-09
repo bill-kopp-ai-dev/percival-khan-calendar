@@ -34,6 +34,9 @@ tests
 !.env.example
 *.pem
 *.key
+secrets/
+logs/
+.cache/
 
 # IDE / OS noise.
 .idea
