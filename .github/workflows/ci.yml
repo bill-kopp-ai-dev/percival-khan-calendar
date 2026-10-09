@@ -7,30 +7,25 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        run: pip install uv
-
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install khal
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y khal || echo "khal not in apt; will use venv"
-          if ! command -v khal >/dev/null 2>&1; then
-            uv pip install --system khal
-          fi
-
       - name: Sync dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --locked --all-extras --dev
 
       - name: Lint (ruff)
         run: |
@@ -46,7 +41,7 @@ jobs:
 
   docker:
     name: Docker build + smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up BuildKit
@@ -56,17 +51,16 @@ jobs:
         run: |
           # SemVer from pyproject.toml — single source of truth.
           VERSION=$(grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
-          SHORT_SHA="${GITHUB_SHA::7}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
       - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
-            GIT_SHA=${{ steps.meta.outputs.short_sha }}
+            GIT_SHA=${{ github.sha }}
           tags: percival-khan-calendar:ci
           load: true
           cache-from: type=gha
@@ -85,6 +79,15 @@ jobs:
           set -euo pipefail
           output=$(docker run --rm percival-khan-calendar:ci --help)
           echo "$output" | grep -Fq "Model Context Protocol"
+      - name: MCP stdio conformance (offline)
+        run: >-
+          python3 scripts/docker-ci-conformance.py
+          --image percival-khan-calendar:ci
+          --mount type=tmpfs,destination=/data,tmpfs-mode=0777
+          --env KHAN_WORKSPACE_DIR=/data
+          --expected-tool khan_get_status
+          --expected-uid 1000
+          --compose-service server
       - name: Inspect image (sanity)
         run: |
           echo "=== Size ==="
@@ -95,3 +98,23 @@ jobs:
           docker inspect percival-khan-calendar:ci --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}'
           echo "=== OCI labels ==="
           docker inspect percival-khan-calendar:ci --format '{{json .Config.Labels}}' | python3 -m json.tool
+          test "$(docker inspect percival-khan-calendar:ci --format '{{.Config.User}}')" = app
+          test "$(docker inspect percival-khan-calendar:ci --format '{{json .Config.ExposedPorts}}')" = "null"
+          test "$(docker inspect percival-khan-calendar:ci --format '{{json .Config.Healthcheck}}')" = "null"
+      - name: Write build manifest
+        run: python3 scripts/write_docker_ci_manifest.py --image percival-khan-calendar:ci --source-sha "$GITHUB_SHA" --lock uv.lock --output docker-build-manifest.json
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: percival-khan-calendar:ci
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+      - name: Upload image evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-evidence-khan-${{ github.sha }}
+          path: |
+            docker-build-manifest.json
+            sbom.cdx.json
+          if-no-files-found: error
