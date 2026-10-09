@@ -50,6 +50,7 @@ docker-compose.*.yml
 
 # Positronic project metadata — never shipped to the runtime image.
 .positronic/
+AGENTS.md
 
 # Agent scratch files (precedent: scratch_*.py was removed in 0.2.0
 # because it contained hardcoded PII; never let it reappear).
