@@ -29,3 +29,6 @@ data/
 
 # Local secrets (without blocking .env.example)
 .env
+
+# Local Percival integration working note (not for the public repo)
+docs/percival-integration.md
