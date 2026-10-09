@@ -312,14 +312,9 @@ any MCP-aware client.
 > runs against Nanobot, opencode and the Docker MCP Toolkit gateway
 > (as a plain Docker image, not as a catalog entry).
 >
-> **About `khal`.** The `khal` binary is **not** bundled — bundling
-> it would inflate the image by ~150 MB. The adapter-only tools
-> (`khan_create_event`, `khan_update_event`, `khan_delete_event*`,
-> `khan_export_ics`, `khan_get_event`) work without `khal`. The
-> `khal`-CLI-backed tools (`khan_list_events`, `khan_view_agenda`,
-> `khan_view_calendar`, `khan_list_calendars`) require `khal` on
-> the host PATH — bind-mount it (`-v /usr/bin/khal:/usr/bin/khal:ro`)
-> or symlink it into the container.
+> **About `khal`.** `khal` is included through the project's locked
+> Python dependencies and installed in the image, so all 12 tools are
+> available without a host executable mount.
 
 ### Quick start
 
@@ -340,14 +335,18 @@ docker run --rm -i --user $(id -u):$(id -g) \
 
 ### With `docker compose`
 
-The shipped `docker-compose.yml` binds `~/.nanobot/workspace/khalCalendar`
-to `/data` inside the container, exposes nothing, and spawns the server
-in stdio mode (`stdin_open: true`, `tty: false`):
+The shipped `docker-compose.yml` binds the calendar directory (default
+`~/.nanobot/workspace/khalCalendar`, override with
+`KHAN_CALENDAR_DATA_HOST_PATH`) to `/data`, exposes nothing, and spawns the
+server in stdio mode (`stdin_open: true`, `tty: false`). Create the host path
+first; it must be writable by container UID/GID `1000:1000`:
 
 ```bash
 docker compose build
-docker compose run --rm server --version
-docker compose run --rm server   # stdio MCP
+install -d "$HOME/.nanobot/workspace/khalCalendar"
+sudo chown 1000:1000 "$HOME/.nanobot/workspace/khalCalendar"
+docker compose run --rm -T server --version
+docker compose run --rm -T server   # stdio MCP
 ```
 
 ### With Nanobot (`~/.nanobot/config.json`)
@@ -361,7 +360,7 @@ docker compose run --rm server   # stdio MCP
         "args": [
           "compose", "-f",
           "/path/to/percival-khan-calendar/docker-compose.yml",
-          "run", "--rm", "server"
+          "run", "--rm", "-T", "server"
         ],
         "env": {}
       }
@@ -400,7 +399,7 @@ Or without compose, pointing straight at the image:
       "command": [
         "docker", "compose", "-f",
         "/path/to/percival-khan-calendar/docker-compose.yml",
-        "run", "--rm", "server"
+        "run", "--rm", "-T", "server"
       ],
       "environment": {}
     }

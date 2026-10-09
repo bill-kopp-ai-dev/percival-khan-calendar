@@ -23,7 +23,7 @@
 #           "command": "docker",
 #           "args": [
 #             "compose", "-f", "/path/to/percival-khan-calendar/docker-compose.yml",
-#             "run", "--rm", "server"
+#             "run", "--rm", "-T", "server"
 #           ],
 #           "env": {}
 #         }
@@ -39,7 +39,7 @@
 #         "type": "local",
 #         "command": ["docker", "compose", "-f",
 #                     "/path/to/percival-khan-calendar/docker-compose.yml",
-#                     "run", "--rm", "server"],
+#                     "run", "--rm", "-T", "server"],
 #         "environment": {}
 #       }
 #     }
@@ -52,12 +52,8 @@
 #
 # Scope note
 # ----------
-# The khal binary is NOT bundled in the image. The adapter-only
-# tools (khan_create_event / khan_update_event / khan_delete_event_*
-# / khan_export_ics / khan_get_event) work without khal. The
-# khal-CLI-backed tools (khan_list_events / khan_view_agenda /
-# khan_view_calendar / khan_list_calendars) require khal on the host
-# PATH; bind-mount it or symlink it in.
+# `khal` is installed from the project's locked Python dependencies in the
+# image. All twelve tools are available without a host executable mount.
 
 services:
   server:
@@ -71,6 +67,7 @@ services:
     init: true
     stdin_open: true
     tty: false
+    restart: "no"
     env_file:
       # Long form: the file is *optional*. The inline `environment`
       # block below already supplies safe defaults via ``:-`` so the
@@ -87,5 +84,10 @@ services:
       KHAN_SUBPROCESS_TIMEOUT: ${KHAN_SUBPROCESS_TIMEOUT:-15}
     volumes:
       # Bind-mount the host calendar so events persist across container runs.
-      # Adjust the source path to your real ~/.nanobot/workspace/khalCalendar.
-      - ~/.nanobot/workspace/khalCalendar:/data
+      # Container UID/GID is 1000:1000; set KHAN_CALENDAR_DATA_HOST_PATH to a
+      # writable host directory owned by that identity (or grant its ACL).
+      - type: bind
+        source: ${KHAN_CALENDAR_DATA_HOST_PATH:-${HOME}/.nanobot/workspace/khalCalendar}
+        target: /data
+        bind:
+          create_host_path: false
