@@ -78,6 +78,8 @@ RUN printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian
     && rm -f /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Check-Valid-Until=false update \
     && apt-get upgrade -y --no-install-recommends \
+    && chmod u-s /usr/bin/mount \
+    && rm -f /usr/bin/nsenter /usr/bin/infocmp \
     && rm -rf /var/lib/apt/lists/*
 
 ARG VERSION=0.0.0
