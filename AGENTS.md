@@ -90,3 +90,16 @@ Nanobot antes de versionar.
 ## Operator scratchpad (safe to delete)
 
 Use esta secao para notas temporarias enquanto itera.
+
+
+## Docker MCP operations
+
+- This MCP is stdio. Keep stdout JSON-RPC-only, without TTY, host port or HTTP
+  healthcheck; its manager supplies the single init.
+- Percival broker owns production containers; Compose is local development only.
+  Positronic is a separate owner with its own `/mcp` TUI/CLI and registry.
+- Use the recorded owner's supported interface, reread global/server revision
+  and pinned image ID, and never edit config/registry/transitions by hand.
+- Calendar mutations (create/update/delete) must use an isolated workspace in
+  tests and rollback rehearsals. Verify `khan_get_status` or another safe read
+  before any approved live operation. Do not expose calendar data or secrets.
