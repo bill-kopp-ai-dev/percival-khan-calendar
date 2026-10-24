@@ -96,7 +96,7 @@ def main() -> int:
         ):
             print(f"Compose stdio contract failed for {args.compose_service}", file=sys.stderr)
             return 1
-    command = ["docker", "run", "--rm", "-i", "--network=none"]
+    command = ["docker", "run", "--rm", "-i", "--init", "--network=none"]
     for mount in args.mount:
         command += ["--mount", mount]
     for item in args.env + args.secret_env:

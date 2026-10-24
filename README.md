@@ -328,7 +328,7 @@ docker run --rm percival-khan-calendar:dev --version
 # → Percival Khan Calendar MCP Server version 0.4.0
 
 # 3. Spawn stdio (the MCP client attaches via `docker run -i`):
-docker run --rm -i --user $(id -u):$(id -g) \
+docker run --rm -i --init --user $(id -u):$(id -g) \
   -v ~/.nanobot/workspace/khalCalendar:/data \
   percival-khan-calendar:dev
 ```
