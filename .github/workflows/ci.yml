@@ -88,6 +88,7 @@ jobs:
           --expected-tool khan_get_status
           --expected-uid 1000
           --compose-service server
+          --call-tool khan_get_status
       - name: Inspect image (sanity)
         run: |
           echo "=== Size ==="

@@ -25,6 +25,15 @@ def main() -> int:
     parser.add_argument("--env", action="append", default=[])
     parser.add_argument("--secret-env", action="append", default=[])
     parser.add_argument("--expected-tool", action="append", default=[])
+    parser.add_argument(
+        "--call-tool",
+        help="Tool to invoke with tools/call after the tools/list handshake.",
+    )
+    parser.add_argument(
+        "--call-args",
+        default="{}",
+        help="JSON object with the arguments for --call-tool.",
+    )
     parser.add_argument("--expected-uid", type=int)
     parser.add_argument("--compose-file", default="docker-compose.yml")
     parser.add_argument("--compose-service")
@@ -107,6 +116,23 @@ def main() -> int:
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
     )
+    if args.call_tool:
+        try:
+            call_arguments = json.loads(args.call_args)
+        except json.JSONDecodeError as exc:
+            print(f"--call-args is not valid JSON: {exc}", file=sys.stderr)
+            return 1
+        if not isinstance(call_arguments, dict):
+            print("--call-args must be a JSON object", file=sys.stderr)
+            return 1
+        requests = requests + (
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": args.call_tool, "arguments": call_arguments},
+            },
+        )
     try:
         process = subprocess.Popen(
             command,
@@ -165,6 +191,16 @@ def main() -> int:
         process.wait()
         print("MCP tools/list response timed out or was invalid", file=sys.stderr)
         return 1
+    if args.call_tool:
+        # The tools/call must be issued *before* stdin is closed: the MCP
+        # SDK cancels in-flight handlers when the transport ends, so a
+        # call issued after the close never gets a frame back.
+        send(requests[3])
+        if not read_response(3):
+            process.kill()
+            process.wait()
+            print("MCP tools/call response timed out or was invalid", file=sys.stderr)
+            return 1
     process.stdin.close()
     try:
         process.wait(timeout=15)
@@ -211,12 +247,31 @@ def main() -> int:
     if missing:
         print(f"tools/list missing expected tools: {missing}", file=sys.stderr)
         return 1
+    if args.call_tool:
+        call_result = by_id.get(3, {}).get("result")
+        if not isinstance(call_result, dict):
+            print("tools/call returned no result frame", file=sys.stderr)
+            print(result_stdout[-4000:], file=sys.stderr)
+            print(redact_secrets(result_stderr[-4000:], args.secret_env), file=sys.stderr)
+            return 1
+        if call_result.get("isError"):
+            print(f"tools/call {args.call_tool} reported isError=true", file=sys.stderr)
+            print(json.dumps(call_result)[:2000], file=sys.stderr)
+            return 1
+        content = call_result.get("content")
+        if not isinstance(content, list) or not content:
+            print(f"tools/call {args.call_tool} returned no content", file=sys.stderr)
+            print(json.dumps(call_result)[:2000], file=sys.stderr)
+            return 1
     for item in args.secret_env:
         _, _, value = item.partition("=")
         if value and (value in result_stdout or value in result_stderr):
             print("configured environment value leaked to stdio output", file=sys.stderr)
             return 1
-    print(f"stdio MCP conformance passed: initialize + tools/list ({len(tools)} tools)")
+    summary = f"stdio MCP conformance passed: initialize + tools/list ({len(tools)} tools)"
+    if args.call_tool:
+        summary += f" + tools/call {args.call_tool}"
+    print(summary)
     return 0
 
 
