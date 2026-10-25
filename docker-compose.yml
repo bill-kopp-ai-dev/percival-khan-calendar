@@ -64,10 +64,17 @@ services:
         VERSION: "0.4.0"
         GIT_SHA: "local"
     image: percival-khan-calendar:dev
+    # Match the fixed non-root image account and the documented /data owner.
+    user: "1000:1000"
     init: true
     stdin_open: true
     tty: false
     restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     env_file:
       # Long form: the file is *optional*. The inline `environment`
       # block below already supplies safe defaults via ``:-`` so the
