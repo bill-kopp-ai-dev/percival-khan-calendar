@@ -54,7 +54,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 # Copy the lockfile, project metadata and README first so the
 # dependency layer caches independently of the source tree.
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 
 # Install dependencies only — the project itself will be installed
 # in a second pass after the source is in place.
@@ -137,6 +137,7 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --from=builder --chown=app:app /app/pyproject.toml /app/pyproject.toml
 COPY --from=builder --chown=app:app /app/README.md /app/README.md
+COPY --from=builder --chown=app:app /app/LICENSE /app/LICENSE
 
 # Runtime defaults (override at run-time via -e or env_file). PATH
 # puts the venv first so the entry point resolves correctly.
