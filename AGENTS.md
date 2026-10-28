@@ -38,9 +38,9 @@ re-reads on the next turn.
   `[tool.pytest.ini_options].addopts`).
 - **Lint isolado:** `uv run --with ruff ruff check .`.
 - **Format check:** `uv run --with ruff ruff format --check .`.
-- **Integracao opt-in:** `uv run pytest --no-cov -m integration` (requer binario
+- **Integracao:** `uv run pytest --no-cov -m integration` (requer binario
   `khal >=0.14.0` + workspace gravavel); excluir com
-  `uv run pytest -m "not integration"`.
+  `uv run pytest --no-cov -m "not integration"`.
 - **Pre-commit:** `uv run pre-commit run --all-files`.
 - **Live smoke (opt-in):** rodar o servidor contra o binario `khal` real,
   validar `khan_get_status` + um create/list/delete ponta-a-ponta + export

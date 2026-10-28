@@ -23,7 +23,11 @@ not a stale ``khal.conf``.
 from __future__ import annotations
 
 import shutil
+import subprocess
+import sys
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -130,3 +134,122 @@ class TestKhalSubprocessRoundTrip:
         adapter = KhalAdapter()
         match = adapter.write_event(title="Layout Parity", start="tomorrow 11:00")
         assert match.filepath.parent == expected
+
+    def test_two_process_writers_preserve_all_events(self, tmp_path, monkeypatch):
+        """Exercise flock coordination across independent Python processes."""
+        import os
+
+        workspace = tmp_path / "multiprocess-workspace"
+        env = os.environ.copy()
+        env.update(
+            {
+                "KHAN_WORKSPACE_DIR": str(workspace),
+                "KHAN_ENABLE_LOCK": "true",
+                "KHAN_TIMEZONE": "UTC",
+                "TZ": "UTC",
+                "PATH": f"{Path(sys.executable).parent}:{env.get('PATH', '')}",
+            }
+        )
+        bootstrap = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from percival_khan_calendar.lifecycle import setup_workspace; setup_workspace()",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert bootstrap.returncode == 0, bootstrap.stderr
+
+        writer = (
+            "import sys; from percival_khan_calendar.adapters.khal_adapter "
+            "import KhalAdapter; a=KhalAdapter(); "
+            "[a.write_event(title=f'{sys.argv[1]}-{i}', start='2030-01-01 10:00') "
+            "for i in range(8)]"
+        )
+        writers = [
+            subprocess.Popen(
+                [sys.executable, "-c", writer, f"writer-{index}"],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            for index in range(2)
+        ]
+        outcomes = [process.communicate(timeout=30) for process in writers]
+        assert all(process.returncode == 0 for process in writers), outcomes
+
+        adapter = KhalAdapter(data_dir=workspace / "data")
+        events = list(adapter._iter_event_files())
+        assert len(events) == 16
+        assert len({str(event.get("uid")) for _, _, event in events}) == 16
+        assert not adapter.skipped_ics
+
+        monkeypatch.setattr(constants, "WORKSPACE_DIR", workspace)
+        monkeypatch.setattr(constants, "DATA_DIR", workspace / "data")
+        monkeypatch.setattr(constants, "CONF_FILE", workspace / "khal.conf")
+        monkeypatch.setattr(constants, "DB_FILE", workspace / "khal.db")
+        monkeypatch.setattr(constants, "LOCK_FILE", workspace / "calendar.lock")
+        monkeypatch.setattr(constants, "TIMEZONE_NAME", "UTC")
+        monkeypatch.setattr(constants, "ENABLE_LOCK", True)
+        listed = executar_comando_khal(
+            ["list", "01/01/2030", "1d"], tool_name="integration.concurrent_list"
+        )
+        assert listed.stdout.count("writer-") == 16
+        from percival_khan_calendar.adapters.locks import workspace_lock
+
+        with workspace_lock(blocking=False):
+            pass
+
+        crashed_writer = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import os; from percival_khan_calendar.adapters.locks "
+                "import workspace_lock; "
+                "lock=workspace_lock(blocking=False); lock.__enter__(); os._exit(23)",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert crashed_writer.returncode == 23
+        with workspace_lock(blocking=False):
+            pass
+
+    def test_today_tomorrow_respect_utc_and_sao_paulo_boundary(self, tmp_path, monkeypatch):
+        """An event near UTC midnight lands in the expected local-day window."""
+        workspace = tmp_path / "timezone-workspace"
+        monkeypatch.setattr(constants, "WORKSPACE_DIR", workspace)
+        monkeypatch.setattr(constants, "DATA_DIR", workspace / "data")
+        monkeypatch.setattr(constants, "CONF_FILE", workspace / "khal.conf")
+        monkeypatch.setattr(constants, "DB_FILE", workspace / "khal.db")
+        monkeypatch.setattr(constants, "LOCK_FILE", workspace / "calendar.lock")
+        monkeypatch.setattr(constants, "ENABLE_LOCK", True)
+        setup_workspace()
+
+        now_utc = datetime.now(timezone.utc)
+        event_start = datetime.combine(
+            now_utc.date() + timedelta(days=1), time(0, 30), tzinfo=timezone.utc
+        )
+        KhalAdapter().write_event(title="Timezone Boundary Fixture", start="", dtstart=event_start)
+
+        for timezone_name in ("UTC", "America/Sao_Paulo"):
+            monkeypatch.setattr(constants, "TIMEZONE_NAME", timezone_name)
+            local_today = datetime.now(ZoneInfo(timezone_name)).date()
+            event_day = event_start.astimezone(ZoneInfo(timezone_name)).date()
+            expected_window = "today" if event_day == local_today else "tomorrow"
+            other_window = "tomorrow" if expected_window == "today" else "today"
+
+            expected = executar_comando_khal(
+                ["list", expected_window, "1d"], tool_name="integration.timezone_expected"
+            )
+            other = executar_comando_khal(
+                ["list", other_window, "1d"], tool_name="integration.timezone_other"
+            )
+            assert "Timezone Boundary Fixture" in expected.stdout
+            assert "Timezone Boundary Fixture" not in other.stdout

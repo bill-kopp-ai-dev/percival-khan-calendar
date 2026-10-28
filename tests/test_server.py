@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
 from percival_khan_calendar import __version__
 from percival_khan_calendar.server import _build_parser, main
 
@@ -56,3 +60,23 @@ class TestMainReturns:
         rc = server.main(["--version"])
         assert rc == 0
         assert called["setup_workspace"] is False
+
+
+def test_invalid_timeout_is_a_controlled_cli_error():
+    env = os.environ.copy()
+    env["KHAN_SUBPROCESS_TIMEOUT"] = "not-a-number"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from percival_khan_calendar.cli import main; raise SystemExit(main())",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "Invalid server configuration" in result.stderr
+    assert "traceback" not in result.stderr.lower()

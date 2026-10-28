@@ -37,7 +37,7 @@ Homepage = "https://github.com/bill-kopp-ai-dev/percival.OS"
 Issues = "https://github.com/bill-kopp-ai-dev/percival.OS/issues"
 
 [project.scripts]
-percival-khan-calendar = "percival_khan_calendar.server:main"
+percival-khan-calendar = "percival_khan_calendar.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/percival_khan_calendar"]

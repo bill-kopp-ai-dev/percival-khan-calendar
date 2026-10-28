@@ -4,8 +4,8 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
 [![MCP](https://img.shields.io/badge/mcp-server-blue.svg)]()
-[![Tests](https://img.shields.io/badge/tests-231%2F231-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-87.52%25-green.svg)]()
+[![Tests](https://img.shields.io/badge/tests-234%2F234-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-86.96%25-green.svg)]()
 [![Docker](https://img.shields.io/badge/docker-stdio%20MCP-blue.svg)]()
 [![percival.OS](https://img.shields.io/badge/percival.OS-ecosystem-orange.svg)](https://github.com/bill-kopp-ai-dev/percival.OS)
 
@@ -145,7 +145,7 @@ This release includes three rounds of bug fixes and feature work:
 - **`constants.CONF_FILE` attribute access** in `subprocess_runner`
   so `monkeypatch`/runtime mutation propagates (was previously
   captured at module-import time).
-- **Real-khal-CLI integration tests** (`pytest -m integration`):
+- **Real-khal-CLI integration tests** (`pytest --no-cov -m integration`):
   the previously-mocked `subprocess.run` is now exercised end-to-end
   against the real `khal 0.14.0` binary, catching layout drift
   before release.
@@ -156,8 +156,9 @@ This release includes three rounds of bug fixes and feature work:
   a fresh `FastMCP` instance instead of reusing the module-level
   global.
 
-Last pre-stage-2 baseline: **87.47%**. The stage-2 execution record carries
-the current test result; the two integration cases are opt-in.
+Last pre-stage-2 baseline: **87.47%**. Four tests are marked `integration`;
+the full test suite runs them when khal is installed, or skips them otherwise.
+Use `--no-cov -m integration` to run only that set.
 
 ---
 
@@ -220,7 +221,7 @@ Add the following configuration to your `~/.nanobot/config.json`:
         "args": [],
         "env": {
           "PYTHONUNBUFFERED": "1",
-          "KHAN_WORKSPACE_DIR": "/home/bill/.nanobot/workspace/khalCalendar",
+          "KHAN_TIMEZONE": "America/Sao_Paulo",
           "KHAN_ENABLE_LOCK": "true",
           "KHAN_LOG_LEVEL": "INFO"
         },
@@ -329,9 +330,10 @@ docker build --build-arg VERSION=0.4.0 --build-arg GIT_SHA=local \
 docker run --rm percival-khan-calendar:dev --version
 # → Percival Khan Calendar MCP Server version 0.4.0
 
-# 3. Spawn stdio (the MCP client attaches via `docker run -i`):
-docker run --rm -i --init --user $(id -u):$(id -g) \
-  -v ~/.nanobot/workspace/khalCalendar:/data \
+# 3. Spawn stdio with a persistent, narrowly scoped calendar workspace:
+install -d "$HOME/.local/share/percival/khan-calendar"
+docker run --rm -i --init --user 1000:1000 \
+  -v "$HOME/.local/share/percival/khan-calendar:/data" \
   percival-khan-calendar:dev
 ```
 
@@ -345,8 +347,8 @@ first; it must be writable by container UID/GID `1000:1000`:
 
 ```bash
 docker compose build
-install -d "$HOME/.nanobot/workspace/khalCalendar"
-sudo chown 1000:1000 "$HOME/.nanobot/workspace/khalCalendar"
+install -d "$HOME/.local/share/percival/khan-calendar"
+sudo chown 1000:1000 "$HOME/.local/share/percival/khan-calendar"
 docker compose run --rm -T server --version
 docker compose run --rm -T server   # stdio MCP
 ```
@@ -381,7 +383,7 @@ Or without compose, pointing straight at the image:
         "command": "docker",
         "args": [
           "run", "--rm", "-i",
-          "-v", "~/.nanobot/workspace/khalCalendar:/data",
+          "-v", "/absolute/path/to/percival/khan-calendar:/data",
           "percival-khan-calendar:dev"
         ],
         "env": {}
@@ -510,18 +512,9 @@ schedule intelligently.
 
 ### `KhanInfrastructureError: khal binary not found`
 
-Install khal:
-
-```bash
-# Option A: pip (works in any Python environment, including venv)
-uv pip install khal
-
-# Option B: apt (Debian / Ubuntu)
-sudo apt install khal
-
-# Verify
-khal --version  # expect "0.14.0" or newer
-```
+The Docker image includes `khal` from the locked Python dependencies, so no
+host executable bind or installation is needed. For source installs, run
+`uv sync` in the project environment and verify `khal --version` there.
 
 ### `KhanInfrastructureError: timed out after Xs`
 
@@ -549,7 +542,8 @@ to see the drift message; the auto-heal is **safe and idempotent**.
 
 ### Workspace bootstrap failed
 
-Make sure the configured `KHAN_WORKSPACE_DIR` is writable. Existing
+Make sure the configured `KHAN_WORKSPACE_DIR` is writable. The default is
+`${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`. Existing
 `~/.nanobot/workspace/khalCalendar` data requires an explicit override;
 there is no automatic migration. Delete
 `khal.conf` to force regeneration on the next start. If permissions

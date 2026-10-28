@@ -75,7 +75,8 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
   `uv run --with ruff ruff format .` (`line-length=100`, `target-version=py311`,
   regras `E,F,I,N,W`).
 - Testes: `uv run pytest` (cobertura embutida >=80% enforced via
-  `pyproject.toml`). Integracao opt-in: `uv run pytest -m integration`.
+  `pyproject.toml`). Filtro de integracao: `uv run pytest --no-cov -m integration`;
+  excluir com `uv run pytest --no-cov -m "not integration"`.
 - Pre-commit: `.pre-commit-config.yaml`. CI em `.github/workflows/`.
 - Cobertura report: `--cov-fail-under=80`, `show_missing=true`,
   `exclude_lines` documentadas em `pyproject.toml`.
@@ -109,6 +110,7 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
   autorizacao para `git push origin main && git push origin v0.4.0`.
 - **Docker empacotamento:** **entregue em v0.4.0**. Espelha o padrao
   `percival-agentmail-mcp` (multi-stage uv + python:3.12-slim, stdio
-  MCP, OCI labels, UID 1000, env defaults via `:-`, sem `khal`
-  binary bundled). CI job `docker` em `.github/workflows/ci.yml`
+  MCP, OCI labels, UID 1000, env defaults via `:-`; `khal`
+  is installed from locked Python dependencies. CI job `docker`
+  em `.github/workflows/ci.yml`
   reproduz os smokes localmente.
