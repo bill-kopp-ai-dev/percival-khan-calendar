@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Final
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # ---------------------------------------------------------------------------
 # Workspace layout (overridable via env).
@@ -18,7 +19,11 @@ from typing import Final
 WORKSPACE_DIR: Final[Path] = Path(
     os.environ.get(
         "KHAN_WORKSPACE_DIR",
-        str(Path.home() / ".nanobot" / "workspace" / "khalCalendar"),
+        str(
+            Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share")))
+            / "percival"
+            / "khan-calendar"
+        ),
     )
 )
 DATA_DIR: Final[Path] = WORKSPACE_DIR / "data"
@@ -31,6 +36,14 @@ LOCK_FILE: Final[Path] = WORKSPACE_DIR / "calendar.lock"
 # ---------------------------------------------------------------------------
 
 DEFAULT_CALENDAR: Final[str] = os.environ.get("KHAN_DEFAULT_CALENDAR", "nanobot")
+
+TIMEZONE_NAME: Final[str] = os.environ.get("KHAN_TIMEZONE", "America/Sao_Paulo")
+try:
+    TIMEZONE: Final[ZoneInfo] = ZoneInfo(TIMEZONE_NAME)
+except (ValueError, ZoneInfoNotFoundError) as exc:
+    raise ValueError(
+        "Invalid KHAN_TIMEZONE; expected a valid IANA timezone such as America/Sao_Paulo or UTC."
+    ) from exc
 
 # ---------------------------------------------------------------------------
 # Truncation constants.
@@ -51,7 +64,14 @@ MAX_SHORT_STR_LEN: Final[int] = 64
 # Subprocess defaults.
 # ---------------------------------------------------------------------------
 
-DEFAULT_SUBPROCESS_TIMEOUT: Final[float] = float(os.environ.get("KHAN_SUBPROCESS_TIMEOUT", "15"))
+try:
+    DEFAULT_SUBPROCESS_TIMEOUT: Final[float] = float(
+        os.environ.get("KHAN_SUBPROCESS_TIMEOUT", "15")
+    )
+    if not (0 < DEFAULT_SUBPROCESS_TIMEOUT < float("inf")):
+        raise ValueError
+except ValueError as exc:
+    raise ValueError("KHAN_SUBPROCESS_TIMEOUT must be a finite number greater than zero.") from exc
 
 # ---------------------------------------------------------------------------
 # Locale (default BR; can be overridden via env when generating khal.conf).

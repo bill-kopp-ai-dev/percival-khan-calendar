@@ -33,6 +33,17 @@ class TestDatetimeTimezoneAware:
             "DTSTART as local-time-with-offset (not naive local time, which "
             "is interpreted as UTC on a different machine)."
         )
+        from datetime import datetime
+
+        from percival_khan_calendar import constants
+
+        assert (
+            dt.date()
+            == datetime.now(constants.TIMEZONE)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .astimezone(dt.tzinfo)
+            .date()
+        )
 
     def test_now_is_timezone_aware(self, isolated_workspace):
         from percival_khan_calendar.adapters.khal_adapter import _parse_khal_time
@@ -201,6 +212,9 @@ class TestSubprocessEnv:
         # bytes never fall out of UTF-8 territory.
         assert "LC_ALL" in captured["env"]
         assert captured["env"]["LC_ALL"] == "C.UTF-8"
+        from percival_khan_calendar import constants
+
+        assert captured["env"]["TZ"] == constants.TIMEZONE_NAME
 
 
 # ---------------------------------------------------------------------------

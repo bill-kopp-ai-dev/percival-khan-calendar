@@ -86,7 +86,9 @@ services:
       # env_file values are loaded first; explicit overrides here make
       # CI / smoke runs reproducible when `.env` is absent.
       KHAN_WORKSPACE_DIR: /data
-      KHAN_ENABLE_LOCK: ${KHAN_ENABLE_LOCK:-false}
+      KHAN_ENABLE_LOCK: ${KHAN_ENABLE_LOCK:-true}
+      KHAN_TIMEZONE: ${KHAN_TIMEZONE:-America/Sao_Paulo}
+      TZ: ${KHAN_TIMEZONE:-America/Sao_Paulo}
       KHAN_LOG_LEVEL: ${KHAN_LOG_LEVEL:-INFO}
       KHAN_SUBPROCESS_TIMEOUT: ${KHAN_SUBPROCESS_TIMEOUT:-15}
     volumes:
@@ -94,7 +96,7 @@ services:
       # Container UID/GID is 1000:1000; set KHAN_CALENDAR_DATA_HOST_PATH to a
       # writable host directory owned by that identity (or grant its ACL).
       - type: bind
-        source: ${KHAN_CALENDAR_DATA_HOST_PATH:-${HOME}/.nanobot/workspace/khalCalendar}
+        source: ${KHAN_CALENDAR_DATA_HOST_PATH:-${XDG_DATA_HOME:-${HOME}/.local/share}/percival/khan-calendar}
         target: /data
         bind:
           create_host_path: false

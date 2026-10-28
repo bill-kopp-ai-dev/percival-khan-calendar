@@ -34,8 +34,6 @@ from percival_khan_calendar.adapters.subprocess_runner import (
 )
 from percival_khan_calendar.lifecycle import setup_workspace
 
-pytestmark = pytest.mark.integration
-
 
 def _khal_available() -> bool:
     """Skip the entire module if khal isn't installed."""
@@ -53,10 +51,10 @@ def _khal_available() -> bool:
     return False
 
 
-pytestmark = pytest.mark.skipif(
-    not _khal_available(),
-    reason="requires the `khal` binary in PATH",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(not _khal_available(), reason="requires the `khal` binary in PATH"),
+]
 
 
 class TestKhalSubprocessRoundTrip:

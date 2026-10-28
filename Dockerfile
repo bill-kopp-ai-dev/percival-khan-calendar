@@ -16,15 +16,9 @@
 #    PYTHON_VERSION  — Python minor version. Default 3.12 (matches CI).
 #    UV_VERSION      — pinned uv release. Default 0.5.11.
 #
-#  Scope note (v0.4.0): this image is **local-first**. The ``khal``
-#  binary is NOT bundled (it would inflate the image by ~150 MB and
-#  pull OS-level deps). The adapter-only tools (khan_create_event,
-#  khan_update_event, khan_delete_event_*, khan_export_ics,
-#  khan_get_event) work without khal. The khal-CLI-backed tools
-#  (khan_list_events, khan_view_agenda, khan_view_calendar,
-#  khan_list_calendars) require a bind-mounted khal or the host PATH
-#  to expose it. The Docker MCP Toolkit, Nanobot and opencode can
-#  all attach to the running container over stdio.
+#  Scope note: khal 0.14.0 is installed from the locked Python
+#  dependencies in the image; all twelve tools work without a host
+#  executable mount.
 # =====================================================================
 
 ARG PYTHON_VERSION=3.12
@@ -141,17 +135,17 @@ COPY --from=builder --chown=app:app /app/LICENSE /app/LICENSE
 
 # Runtime defaults (override at run-time via -e or env_file). PATH
 # puts the venv first so the entry point resolves correctly.
-# ``KHAN_ENABLE_LOCK=false`` is the default because the bind-mounted
-# host directory already serializes concurrent writers at the
-# filesystem layer; flip to "true" if multiple containers will race
-# on the same mount.
+# Locking is enabled by default; set KHAN_ENABLE_LOCK=false only when
+# the workspace is guaranteed to have a single writer.
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     HOME=/app \
     KHAN_WORKSPACE_DIR=/data \
-    KHAN_ENABLE_LOCK=false \
+    KHAN_TIMEZONE=America/Sao_Paulo \
+    TZ=America/Sao_Paulo \
+    KHAN_ENABLE_LOCK=true \
     KHAN_LOG_LEVEL=INFO \
     KHAN_SUBPROCESS_TIMEOUT=15
 

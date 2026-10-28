@@ -185,7 +185,11 @@ def executar_comando_khal(
             # deterministic across environments.
             import os
 
-            inherit_env = {**os.environ, "LC_ALL": "C.UTF-8"}
+            inherit_env = {
+                **os.environ,
+                "LC_ALL": "C.UTF-8",
+                "TZ": constants.TIMEZONE_NAME,
+            }
             proc = subprocess.run(
                 full_cmd,
                 capture_output=True,

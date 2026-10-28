@@ -4,8 +4,8 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
 [![MCP](https://img.shields.io/badge/mcp-server-blue.svg)]()
-[![Tests](https://img.shields.io/badge/tests-220%2F220-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-87.47%25-green.svg)]()
+[![Tests](https://img.shields.io/badge/tests-231%2F231-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-87.52%25-green.svg)]()
 [![Docker](https://img.shields.io/badge/docker-stdio%20MCP-blue.svg)]()
 [![percival.OS](https://img.shields.io/badge/percival.OS-ecosystem-orange.svg)](https://github.com/bill-kopp-ai-dev/percival.OS)
 
@@ -156,7 +156,8 @@ This release includes three rounds of bug fixes and feature work:
   a fresh `FastMCP` instance instead of reusing the module-level
   global.
 
-Coverage: **87.47%**. Tests: **220 unit + 2 integration** (opt-in).
+Last pre-stage-2 baseline: **87.47%**. The stage-2 execution record carries
+the current test result; the two integration cases are opt-in.
 
 ---
 
@@ -261,9 +262,10 @@ Alternatively, run from source:
 
 | Variable | Default | Description |
 |---|---|---|
-| `KHAN_WORKSPACE_DIR` | `~/.nanobot/workspace/khalCalendar` | Where the calendar state lives. |
+| `KHAN_WORKSPACE_DIR` | `${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar` | Where the calendar state lives. Existing workspaces require an explicit override; no automatic migration occurs. |
+| `KHAN_TIMEZONE` | `America/Sao_Paulo` | IANA timezone used for wall-clock dates and khal display. |
 | `KHAN_DEFAULT_CALENDAR` | `nanobot` | Calendar name under `data/<calendar>/*.ics`. |
-| `KHAN_ENABLE_LOCK` | `false` | If `true`, uses `fcntl.flock` on every write. |
+| `KHAN_ENABLE_LOCK` | `true` | If `true`, uses `fcntl.flock` on every write; disable only with a guaranteed single writer. |
 | `KHAN_LOG_LEVEL` | `INFO` | Standard Python logging level. |
 
 ---
@@ -282,8 +284,8 @@ uv sync --extra test
 # Run unit tests (default; no khal binary required)
 uv run pytest
 
-# Run integration tests (requires khal binary + writable workspace)
-uv run pytest -m integration
+# Run integration tests (opt-in; disable the full-suite coverage threshold)
+uv run pytest --no-cov -m integration
 
 # Run with coverage
 uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
@@ -336,7 +338,7 @@ docker run --rm -i --init --user $(id -u):$(id -g) \
 ### With `docker compose`
 
 The shipped `docker-compose.yml` binds the calendar directory (default
-`~/.nanobot/workspace/khalCalendar`, override with
+`${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`, override with
 `KHAN_CALENDAR_DATA_HOST_PATH`) to `/data`, exposes nothing, and spawns the
 server in stdio mode (`stdin_open: true`, `tty: false`). Create the host path
 first; it must be writable by container UID/GID `1000:1000`:
@@ -444,9 +446,9 @@ through the gateway:
 The runtime reads the same environment variables the local install
 does — see `.env.example`. `KHAN_WORKSPACE_DIR` defaults to `/data`
 inside the container (bind-mount your host's
-`~/.nanobot/workspace/khalCalendar` to `/data`); `KHAN_ENABLE_LOCK`
-defaults to `false` because the bind-mounted host directory already
-serializes concurrent writers.
+`${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar` to `/data`);
+`KHAN_ENABLE_LOCK` defaults to `true`. Set `KHAN_TIMEZONE` to the manager
+profile's timezone. Existing calendars are not migrated automatically.
 
 Pass overrides via `--env-file .env`, `docker run -e KEY=VALUE …`,
 or the `environment:` / `env_file:` keys in `docker-compose.yml`.
@@ -524,8 +526,8 @@ khal --version  # expect "0.14.0" or newer
 ### `KhanInfrastructureError: timed out after Xs`
 
 The khal SQLite DB may be locked. Wait a moment and retry, or set
-`KHAN_ENABLE_LOCK=false` if you have only one process touching the
-calendar.
+`KHAN_ENABLE_LOCK=false` only if a single writer is guaranteed for the
+workspace.
 
 ### `KhanAmbiguousMatchError: Ambiguous match for 'foo': N candidates`
 
@@ -535,7 +537,8 @@ term, or use `khan_get_event` to inspect candidates one by one.
 ### `KhanLockError: Workspace lock held by another process`
 
 A second agent is currently editing the calendar. Wait a few
-seconds, or set `KHAN_ENABLE_LOCK=false` (loses concurrency safety).
+seconds, or set `KHAN_ENABLE_LOCK=false` only when no other writer can access
+the workspace (loses concurrency safety).
 
 ### `khan.conf` keeps re-generating on every boot
 
@@ -546,7 +549,9 @@ to see the drift message; the auto-heal is **safe and idempotent**.
 
 ### Workspace bootstrap failed
 
-Make sure `~/.nanobot/workspace/khalCalendar` is writable. Delete
+Make sure the configured `KHAN_WORKSPACE_DIR` is writable. Existing
+`~/.nanobot/workspace/khalCalendar` data requires an explicit override;
+there is no automatic migration. Delete
 `khal.conf` to force regeneration on the next start. If permissions
 keep getting denied, check umask and parent directory ownership.
 
@@ -555,7 +560,7 @@ keep getting denied, check umask and parent directory ownership.
 ```bash
 uv sync --extra test
 uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
-# 220 passed in ~7s; coverage 87.47%
+# Stage-2 execution results are recorded in docs/plans/2026-10-27-stage-2-remediation-plan.md.
 ```
 
 ---

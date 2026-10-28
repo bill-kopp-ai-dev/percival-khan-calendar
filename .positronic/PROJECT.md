@@ -55,7 +55,7 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
    comportamento (ex.: round-6 descobriu que `icalendar` v6 escolhe
    serializacao diferente entre `ev["x"] = value` e `.add(UPPER, value)`).
    Lockfile + CI + rounds de bug-hunt pass com regressao.
-3. **Workspace lock contention.** `KHAN_ENABLE_LOCK` opcional; default
+3. **Workspace lock contention.** `KHAN_ENABLE_LOCK` default `true`;
    `false` recomendado quando ha um unico processo.
 4. **Modelo "calendario = dado nao-confiavel".** Todo conteudo externo lido
    do calendario e cercado por envelope XML e tratado como data, nunca como
@@ -63,9 +63,10 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
 5. **Path traversal.** `calendar=` validado em
    `KhalAdapter._validate_calendar_name` contra `[A-Za-z0-9_.-]{1,64}`
    antes do round-trip.
-6. **Local-first / privacidade.** Calendario vive em
-   `~/.nanobot/workspace/khalCalendar`; sync com nuvem so com consentimento
-   explicito. Principio percival.OS.
+6. **Local-first / privacidade.** O default novo é
+   `${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`; calendários
+   existentes em `~/.nanobot/workspace/khalCalendar` exigem override explícito.
+   Não ocorre migração automática; sync com nuvem só com consentimento explícito.
 7. **Licenca MIT** mantida; copyright `percival.OS Team`.
 
 ## Working conventions

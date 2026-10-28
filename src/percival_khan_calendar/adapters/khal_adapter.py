@@ -484,7 +484,7 @@ def _parse_khal_time_wall_clock(value: str) -> datetime:
     if not isinstance(value, str):
         raise KhanValidationError(f"Time expression must be a string, got {type(value).__name__}.")
     s = value.strip()
-    now_local = datetime.now().astimezone()
+    now_local = datetime.now(constants.TIMEZONE)
     # ``local_tz`` is what every parsed value defaults to when the user
     # gave a wall-clock time without an explicit timezone.
     local_tz = now_local.tzinfo
@@ -586,7 +586,7 @@ def _get_local_tz():
         return cached
     # astimezone() of a naive datetime gives a tz-aware instance;
     # in CPython that tz is the system local.
-    cached = datetime.now().astimezone().tzinfo
+    cached = constants.TIMEZONE
     _LOCAL_SENTINEL.tz = cached
     return cached
 

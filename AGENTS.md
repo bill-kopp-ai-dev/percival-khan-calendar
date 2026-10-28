@@ -38,9 +38,9 @@ re-reads on the next turn.
   `[tool.pytest.ini_options].addopts`).
 - **Lint isolado:** `uv run --with ruff ruff check .`.
 - **Format check:** `uv run --with ruff ruff format --check .`.
-- **Integracao opt-in:** `uv run pytest -m integration` (requer binario
-  `khal >=0.14.0` + workspace gravavel em
-  `~/.nanobot/workspace/khalCalendar`).
+- **Integracao opt-in:** `uv run pytest --no-cov -m integration` (requer binario
+  `khal >=0.14.0` + workspace gravavel); excluir com
+  `uv run pytest -m "not integration"`.
 - **Pre-commit:** `uv run pre-commit run --all-files`.
 - **Live smoke (opt-in):** rodar o servidor contra o binario `khal` real,
   validar `khan_get_status` + um create/list/delete ponta-a-ponta + export
@@ -73,17 +73,14 @@ Nanobot antes de versionar.
 
 ## Open questions
 
-- **Versionamento pos round-9:** tag anotada `v0.4.0` criada em
-  `699072b` (HEAD local). `origin/main` ainda em `7f083b5` ate o
-  push ser autorizado.
-- **Refresh README:** badges atualizados em v0.4.0 para 220 tests /
-  87.47% coverage; secao "🐳 Docker (v0.4.0)" nova.
+- **Baseline stage-2:** checkout revalidado em `3dc7e8a`; `khal 0.14.0`
+  está instalado no ambiente e embarcado como dependência travada da imagem.
 - **Docker empacotamento:** **entregue em v0.4.0**. Multi-stage
   `Dockerfile` (uv 0.5.11 + python:3.12-slim, UID 1000, OCI labels,
   stdio MCP), `docker-compose.yml` local recipe, `.dockerignore`
   completo, e CI job `docker` (build + smoke `--version`/`--help` +
-  inspect). `khal` binary nao bundleado por design (adapter-only
-  tools funcionam; CLI-backed tools exigem `khal` no host PATH).
+  inspect). `khal` e as ferramentas CLI são instalados no virtualenv da imagem;
+  não requerem binário nem bind do host.
 
 ---
 

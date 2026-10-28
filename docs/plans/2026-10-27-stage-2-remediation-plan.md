@@ -1,7 +1,7 @@
 # Stage-2 — Remediação do Percival Khan Calendar MCP
 
 **Data / revisão:** 2026-10-27 / 1.0.  
-**ID / estado:** S2-KC / planejado; execução não iniciada.  
+**ID / estado:** S2-KC / execução local parcial; gates externos pendentes.
 **Checkout executor:** `/home/bill/Projects/percival-khan-calendar`.  
 **Responsável:** executor Khan a designar por bill; perfil/runtime com owner do gestor.
 
@@ -29,7 +29,11 @@ real automaticamente ao mudar o default de path.
 
 - [ ] Ler instruções/README/config/CI disponíveis; registrar SHA/worktree e
   reconciliar com o owner o destino da nota F3 localmente excluída.
-- [ ] Confirmar `khal` da imagem, paths/defaults e timezone. A documentação antiga
+- [x] Confirmar `khal` local e paths/defaults; `khal 0.14.0` responde no `.venv`.
+  O novo default definido foi `${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`;
+  workspaces antigos requerem override explícito, sem migração automática.
+  A imagem construída e o timezone ainda precisam de validação no candidato.
+- [ ] A documentação antiga
   em `AGENTS.md`/PROJECT sobre ausência do `khal` é parte do achado, não prova atual.
 - [ ] Owner decide knob de fuso, default do lock e estratégia de compatibilidade
   para workspace antigo; S2-C01 define perfil e lifecycle com o broker.
@@ -98,7 +102,7 @@ externo pendente permanece parcial, mesmo com suíte local verde.
 
 | Data / owner | Ações / achados | SHA inicial → final | Mudanças / evidências locais | Resultado / V-* / pendências |
 |---|---|---|---|---|
-| Pendente | A-001–A-012 | A registrar | Nenhuma execução nesta emissão | Não iniciada |
+| 2026-10-27 / executor Khan | A-001/A-002/A-003/A-004/A-006 parciais; A-011 parcial; A-005/A-007/A-008/A-009/A-010/A-012 abertas | `3dc7e8a38333b07c7fe660871ff4b3c2ccb83602` → worktree não commitado | Bill decidiu `KHAN_TIMEZONE=America/Sao_Paulo` configurável, lock default `true`, workspace novo fora da state_root e legado só via override. Código/receitas alterados: timezone IANA, `TZ` no subprocesso, workspace XDG, markers de integração combinados, lock no Docker/Compose e parse do timeout finito >0. Evidência: `khal 0.14.0`; `231 passed`, cobertura 87.52%; dois testes integration passaram; selectors coletaram 2 integration e excluiram 2; Ruff check/format e `docker compose config --quiet` passaram. | Parcial. Sem build/candidato (`V-BUILD`), teste de fuso UTC/container cruzando dia, concorrência multiprocesso A-012 ou prova do broker A-002. A-005 aguarda scan vigente/VEX e CI gateway; A-007 ainda requer reconciliação de tag/HEAD sem alegar consulta remota; A-008 depende contrato S2-C01/owner broker; A-009 depende schema S2-C03; A-010 aguarda verificação da origem/autenticação apt e pinagem final. A-011 ainda precisa comprovar erro operador sem traceback/stdout poluído. `uv` CLI indisponível; testes/lint foram executados pelos bins do `.venv`. |
 
 ## 7. Última etapa — atualizar o plano coordenador
 
