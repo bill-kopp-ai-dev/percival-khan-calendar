@@ -40,8 +40,17 @@ real automaticamente ao mudar o default de path.
 - [x] Decisões já registradas do owner: `KHAN_TIMEZONE=America/Sao_Paulo`
   configurável, lock default `true`, workspace novo fora da state_root e legado
   somente por override explícito. Perfil/lifecycle do broker ainda depende de S2-C01.
-- [ ] Estimar por lote com bill (D-06). Ensaio de broker requer P0 Percival
-  fechado e receita autorizada; plano operacional do piloto depende de D-05.
+- [x] Decisões do operador de 2026-10-28 aplicáveis: `R-02` define o default
+  do broker como `mounts=[]`, com mounts explicitamente declarados e `null`
+  sujeito a confirmação e auditoria separadas; `R-03` remove a exigência de
+  estimar esforço, custo ou prazo; `R-06` adota o schema externo de `server.json`,
+  `pblabs.app.yaml` como extensão operacional e `pblabs-mcp-index` como destino,
+  sem dependência do Docker MCP Catalog; `R-07` exige VEX por CVE associado ao
+  image ID e assinado pelo owner, com CVEs da imagem base tratados por herança.
+- [ ] O teste do perfil de mounts do broker e a validação de runtime continuam
+  execução externa; a política já está decidida por `R-02`. A nota F3 local
+  continua excluída por decisão anterior, e o tracker canônico por imagem será
+  mantido em `pblabs-mcp-index` (`R-05`), sem recriar cópia neste checkout.
 
 ## 3. Backlog integral e critérios de aceite
 
@@ -51,14 +60,14 @@ prioridades de origem preservadas.
 | Ação | Achado / P | Trabalho e áreas previstas | Dependência / dono externo | Aceite verificável |
 |---|---|---|---|---|
 | A-001 | F-001 / P1 | Expor fuso/config e alinhar TZ em código, Dockerfile, Compose e perfil broker | Decisão do produto; S2-NB-X01 | Fixture de relógio em fronteira de dia: today/tomorrow, listagem e DTSTART coerentes com fuso configurado; host/container/perfil de install concordam; UTC e America/Sao_Paulo exercitados |
-| A-002 | F-002 / P1 | Mover default do workspace para fora da state_root e documentar bind estreito com persistent true; manter migração explícita | S2-C01 e S2-NB-X01; política do broker vigente | Workspace sintético persiste após recriação, fora da raiz mascarada; sem bind de `/home` ou reabertura de path protegido; hipótese de runtime confirmada no broker |
+| A-002 | F-002 / P1 | Mover default do workspace para fora da state_root e documentar bind estreito com persistent true; manter migração explícita | S2-C01 e S2-NB-X01; política `R-02` | Workspace sintético persiste após recriação, fora da raiz mascarada; bind explicitamente estreito; default sem bind (`mounts=[]`), sem acesso amplo implícito; validar o comportamento no broker. A política está decidida, a prova de runtime permanece pendente |
 | A-003 | F-003 / P2 | Corrigir docs/cabeçalho Dockerfile/AGENTS/PROJECT e instruções versionadas: khal é dependência embarcada | Revisar valores no candidato | Imagem informa khal presente e sua versão; 12 tools funcionam sem binário host; docs deixam de prescrever bind/instalação desnecessária |
 | A-004 | F-004 / P2 | Combinar markers de integração/skipif e alinhar comandos README/AGENTS/PROJECT | Sem dependência externa | `pytest --no-cov -m integration` coleta os testes marcados e `-m "not integration"` os exclui; atualizar contagem se suíte evoluir, sem perder casos |
-| A-005 | F-005 / P2 | Gerar candidato/scan vigente e decisão VEX; receber verificação do builder CI do gateway | S2-NB-X02; gate F3/etapa 2 IaC | Manifesto/SHA/DB/image ID, scan JSON e VEX por CVE quando aplicável; resultado CI do candidato, sem encerrar com banco antigo ou artefato inexistente |
+| A-005 | F-005 / P2 | Gerar candidato/scan vigente e evidência VEX conforme o gate decidido | S2-NB-X02; `R-07`; etapa 2 IaC | Manifesto/SHA/DB/image ID, scan JSON e VEX por CVE detectado associado ao image ID e assinado pelo owner; CVEs da imagem base seguem a postura por herança; resultado CI do candidato, sem encerrar com banco antigo ou artefato inexistente |
 | A-006 | F-006 / P3 | Unificar default KHAN_ENABLE_LOCK em código, imagem, Compose e docs | Decisão do owner; recomenda-se habilitado, não decisão já tomada | Mesmo default efetivo em todos; cenário de override explícito testado; A-012 usa lock habilitado |
 | A-007 | F-007 / P3 | Atualizar badges, contagens, tag/HEAD, snapshot e estado conhecido do push | Somente evidência local ou consulta autorizada | Docs coerentes com SHA/suíte/tag; referência remote-tracking datada não apresentada como consulta remota atual |
 | A-008 | F-008 / P3 | Registrar intenção de shutdown e/ou formalizar exit 143 esperado no contrato do gestor | S2-C01; S2-NB-X01 | SIGTERM observável, código documentado, escrita íntegra e lock liberado; aceitação de 143 não promete drain carregado |
-| A-009 | F-009 / P3 | Produzir metadata/server.json aplicável e documento de instalação versionado, substituindo dependência de nota gitignored | S2-C03; etapas 2/4 IaC | Schema vigente validado, identidade/versão/imagem/transporte coerentes; instalação estreita e TZ explícitos, linkados ao manifesto |
+| A-009 | F-009 / P3 | Produzir metadata `server.json` e extensão `pblabs.app.yaml` conforme `R-06`, mais instruções de instalação versionadas | S2-C03; etapas 2/4 IaC | Schema externo adotado materializado/validado; identidade/versão/imagem/transporte coerentes; manifest destinado a `pblabs-mcp-index`; instalação estreita e TZ explícitos. Docker MCP Catalog não é dependência |
 | A-010 | F-010 / P3 | Fixar actions por SHA e verificar autenticação/origem do snapshot apt no build | Owner da cadeia de distribuição | Workflow pinado; evidência do mecanismo de verificação; `check-valid-until=no` não é prova suficiente de assinatura desativada; exceção só por decisão justificada com dono/prazo |
 | A-011 | F-011 / P3 | Validar KHAN_SUBPROCESS_TIMEOUT na configuração com erro de operador controlado | Política de configuração do produto | Valor malformado falha controladamente sem traceback nem stdout poluído; não virar fallback silencioso sem decisão explícita |
 | A-012 | F-012 / P3 | Adicionar prova real de dois processos escrevendo com lock habilitado em workspace sintético | A-006 | Dois escritores completam sem perda/corrupção do vdir/khal.db, dados/UID e locks íntegros; falha/crash libera lock conforme contrato |
@@ -75,11 +84,13 @@ atribuir bypass de assinatura; registrar conclusão corrigida com evidência nov
    não habilitar dois escritores só porque o teste unitário de lock passou.
 3. **KC-3:** A-005/A-009/A-010 com candidato/contrato do índice e CI. A-002
    recebe prova do broker pelo owner, após precondições, sem operar runtime real.
+   O critério VEX/schema/destino já está decidido em `R-06`/`R-07`; resta
+   materializar e validar artefatos, não reabrir a escolha de política.
 
 S2-NB-X01 cuida do perfil broker; S2-NB-X02 do gate de qualificação externo.
 Mudanças externas não são executadas por este checkout. A etapa de replicação do
-piloto exige documento próprio e evidência depois de D-05/D-06; publicação continua
-nas etapas 2/4 do roadmap. Sem deadline/horas presumidos.
+piloto exige documento próprio e evidência; `R-03` remove estimativas de esforço,
+custo ou prazo. Publicação continua nas etapas 2/4 do roadmap.
 
 ## 5. Qualificação futura no checkout
 
