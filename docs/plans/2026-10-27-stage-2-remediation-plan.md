@@ -40,15 +40,18 @@ real automaticamente ao mudar o default de path.
 - [x] Decisões já registradas do owner: `KHAN_TIMEZONE=America/Sao_Paulo`
   configurável, lock default `true`, workspace novo fora da state_root e legado
   somente por override explícito. Perfil/lifecycle do broker ainda depende de S2-C01.
-- [x] Decisões do operador de 2026-10-28 aplicáveis: `R-02` define o default
-  do broker como `mounts=[]`, com mounts explicitamente declarados e `null`
-  sujeito a confirmação e auditoria separadas; `R-03` remove a exigência de
+- [x] Atualização de decisão do operador em 2026-10-29: `R-10` supersede `R-02`
+  quanto ao default do broker Percival, que permanece amplo conforme B14/B22/B23–B25.
+  Khan deve configurar explicitamente o bind estreito do workspace persistente;
+  não herdar o default amplo. Ampliar perfil restrito exige confirmação/auditoria.
+  `R-03` remove a exigência de
   estimar esforço, custo ou prazo; `R-06` adota o schema externo de `server.json`,
   `pblabs.app.yaml` como extensão operacional e `pblabs-mcp-index` como destino,
   sem dependência do Docker MCP Catalog; `R-07` exige VEX por CVE associado ao
   image ID e assinado pelo owner, com CVEs da imagem base tratados por herança.
 - [ ] O teste do perfil de mounts do broker e a validação de runtime continuam
-  execução externa; a política já está decidida por `R-02`. A nota F3 local
+  execução externa; o default amplo está decidido por `R-10`, mas o perfil Khan
+  continua configurado explicitamente com bind estreito. A nota F3 local
   continua excluída por decisão anterior, e o tracker canônico por imagem será
   mantido em `pblabs-mcp-index` (`R-05`), sem recriar cópia neste checkout.
 
@@ -60,7 +63,7 @@ prioridades de origem preservadas.
 | Ação | Achado / P | Trabalho e áreas previstas | Dependência / dono externo | Aceite verificável |
 |---|---|---|---|---|
 | A-001 | F-001 / P1 | Expor fuso/config e alinhar TZ em código, Dockerfile, Compose e perfil broker | Decisão do produto; S2-NB-X01 | Fixture de relógio em fronteira de dia: today/tomorrow, listagem e DTSTART coerentes com fuso configurado; host/container/perfil de install concordam; UTC e America/Sao_Paulo exercitados |
-| A-002 | F-002 / P1 | Mover default do workspace para fora da state_root e documentar bind estreito com persistent true; manter migração explícita | S2-C01 e S2-NB-X01; política `R-02` | Workspace sintético persiste após recriação, fora da raiz mascarada; bind explicitamente estreito; default sem bind (`mounts=[]`), sem acesso amplo implícito; validar o comportamento no broker. A política está decidida, a prova de runtime permanece pendente |
+| A-002 | F-002 / P1 | Mover default do workspace para fora da state_root e documentar bind estreito com persistent true; manter migração explícita | S2-C01 e S2-NB-X01; política `R-10` | Workspace sintético persiste após recriação, fora da raiz mascarada; bind explicitamente estreito; não depender do default amplo do broker nem permitir acesso amplo implícito no perfil Khan; validar o comportamento no broker. A política está decidida, a prova de runtime permanece pendente |
 | A-003 | F-003 / P2 | Corrigir docs/cabeçalho Dockerfile/AGENTS/PROJECT e instruções versionadas: khal é dependência embarcada | Revisar valores no candidato | Imagem informa khal presente e sua versão; 12 tools funcionam sem binário host; docs deixam de prescrever bind/instalação desnecessária |
 | A-004 | F-004 / P2 | Combinar markers de integração/skipif e alinhar comandos README/AGENTS/PROJECT | Sem dependência externa | `pytest --no-cov -m integration` coleta os testes marcados e `-m "not integration"` os exclui; atualizar contagem se suíte evoluir, sem perder casos |
 | A-005 | F-005 / P2 | Gerar candidato/scan vigente e evidência VEX conforme o gate decidido | S2-NB-X02; `R-07`; etapa 2 IaC | Manifesto/SHA/DB/image ID, scan JSON e VEX por CVE detectado associado ao image ID e assinado pelo owner; CVEs da imagem base seguem a postura por herança; resultado CI do candidato, sem encerrar com banco antigo ou artefato inexistente |
