@@ -9,6 +9,14 @@ Owner: project-scoped operator. Edit directly with your editor; the runtime
 re-reads on the next turn.
 -->
 
+## Company approval
+
+This project belongs to Positronic Bean Labs (PBLabs), owned by Bill Kopp.
+Bill is the sole final decision-maker for decisions requiring owner or company
+approval. Technical review, implementation, and routine operations may be
+delegated without transferring final approval authority. This does not alter
+runtime access or authorize publication, deployment, or production changes.
+
 ## Project identity
 
 - **Name:** `percival-khan-calendar`
