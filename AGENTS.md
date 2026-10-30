@@ -9,13 +9,20 @@ Owner: project-scoped operator. Edit directly with your editor; the runtime
 re-reads on the next turn.
 -->
 
-## Company approval
+## Owner and decisions
 
-This project belongs to Positronic Bean Labs (PBLabs), owned by Bill Kopp.
-Bill is the sole final decision-maker for decisions requiring owner or company
-approval. Technical review, implementation, and routine operations may be
-delegated without transferring final approval authority. This does not alter
-runtime access or authorize publication, deployment, or production changes.
+- **Owner, sole operator, decision-maker, and signer:** Bill Kopp
+  (`bill.kopp.dev@gmail.com`), Positronic Bean Labs.
+- **Website:** <https://labs.positronicbean.com>.
+- Bill is the only person working on this application and its IaC. No third-party
+  review, approval, or acceptance is required. Record each decision once and
+  reuse it within its stated scope; do not create repeated approval gates.
+- Technical checks are evidence, not additional approvals. Run only checks that
+  address a concrete acceptance, compatibility, or safety requirement; reuse
+  valid evidence for the same source/image instead of repeating it.
+- Production changes, publication, and real-calendar mutations still require
+  Bill's explicit instruction for that operation. This does not require a
+  second approval after he has instructed it.
 
 ## Project identity
 
@@ -33,8 +40,9 @@ runtime access or authorize publication, deployment, or production changes.
 - **Lint/format:** `uv run --with ruff ruff check .` e
   `uv run --with ruff ruff format .` (`line-length=100`, `py311`,
   regras `E,F,I,N,W`).
-- **Manutencao corretiva:** cada fix vem com regressao em `tests/` que
-  falha sem o patch (precedente: rounds 2-8).
+- **Correcoes de comportamento:** adicionar regressao direcionada quando
+  automatizavel; para mudancas apenas documentais/configuracionais, validar
+  diretamente o artefato afetado. Nao exigir testes sem relacao com a mudanca.
 - **Markdown table cells** em `resources/docs.py` ignoram `E501`/`W605`
   intencionalmente (lidos por humanos, nao pelo lint layer).
 - Nao editar `.venv/`, `.git/`, `dist/`, `build/`, ou
@@ -42,17 +50,22 @@ runtime access or authorize publication, deployment, or production changes.
 
 ## Verification
 
+- Escolher verificacoes que cubram o comportamento alterado; nao repetir
+  validacoes equivalentes para o mesmo SHA/imagem.
 - **Canonical:** `uv run pytest` (cobertura embutida >=80% enforced via
-  `[tool.pytest.ini_options].addopts`).
-- **Lint isolado:** `uv run --with ruff ruff check .`.
-- **Format check:** `uv run --with ruff ruff format --check .`.
+  `[tool.pytest.ini_options].addopts`), quando a mudanca afetar codigo Python
+  ou antes de qualificar um candidato.
+- **Lint/format:** `uv run --with ruff ruff check .` e
+  `uv run --with ruff ruff format --check .` quando houver mudancas Python.
 - **Integracao:** `uv run pytest --no-cov -m integration` (requer binario
-  `khal >=0.14.0` + workspace gravavel); excluir com
+  `khal >=0.14.0` + workspace gravavel), somente quando a mudanca afetar
+  integracao com khal; excluir com
   `uv run pytest --no-cov -m "not integration"`.
-- **Pre-commit:** `uv run pre-commit run --all-files`.
-- **Live smoke (opt-in):** rodar o servidor contra o binario `khal` real,
-  validar `khan_get_status` + um create/list/delete ponta-a-ponta + export
-  `.ics`. Requer workspace de teste configurado.
+- **Pre-commit:** `uv run pre-commit run --all-files`, quando hooks relevantes
+  ou a qualificacao do candidato exigirem.
+- **Container smoke:** validar versao, `tools/list` e uma leitura segura para
+  candidato de imagem. Testar mutacoes ponta-a-ponta apenas quando forem
+  afetadas pela mudanca, sempre em workspace sintetico.
 
 ## MCP contract surface (stable since v0.2.3; preserved verbatim in v0.4.0)
 
@@ -65,8 +78,9 @@ runtime access or authorize publication, deployment, or production changes.
   `khan_search_strategy`, `khan_quick_action_quick_create`.
 - **Resource (1):** `khan://schema/main`.
 
-Mudancas de nome/schema sao **breaking change** -- coordenar com o time
-Nanobot antes de versionar.
+Mudancas de nome/schema sao **breaking change**. Bill decide quando versionar;
+verifique consumidores conhecidos e documente incompatibilidades concretas,
+sem exigir aceite de terceiros.
 
 ## Security posture
 
@@ -101,10 +115,9 @@ Use esta secao para notas temporarias enquanto itera.
 
 - This MCP is stdio. Keep stdout JSON-RPC-only, without TTY, host port or HTTP
   healthcheck; its manager supplies the single init.
-- Percival broker owns production containers; Compose is local development only.
-  Positronic is a separate owner with its own `/mcp` TUI/CLI and registry.
-- Use the recorded owner's supported interface, reread global/server revision
-  and pinned image ID, and never edit config/registry/transitions by hand.
+- The broker owns production container lifecycle; Compose is local development
+  only. Use the supported interface and verify the target before a mutation;
+  do not edit manager configuration or registry state by hand.
 - Calendar mutations (create/update/delete) must use an isolated workspace in
-  tests and rollback rehearsals. Verify `khan_get_status` or another safe read
-  before any approved live operation. Do not expose calendar data or secrets.
+  tests. Before an explicitly requested real-calendar operation, verify
+  `khan_get_status` or another safe read. Do not expose calendar data or secrets.
