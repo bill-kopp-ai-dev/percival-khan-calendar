@@ -146,10 +146,10 @@ técnicas ainda necessárias; reutilizar uma evidência válida em vez de repeti
 | A-004 | F-004 / P2 | Combinar markers de integração/skipif e alinhar comandos README/AGENTS/PROJECT | Verificada localmente: quatro integration selecionados e 230 testes excluídos | Sem dependência externa | `pytest --no-cov -m integration` coleta os testes marcados e `-m "not integration"` os exclui; atualizar contagem se suíte evoluir, sem perder casos |
 | A-005 | F-005 / P2 | Gerar candidato/scan vigente e evidência VEX conforme o gate decidido | Verificada localmente em 2026-10-31: 12 CVEs no primeiro candidato; dependências corrigidas no lock; novo candidato escaneado com zero CVEs. Nenhum VEX necessário para o candidato final | `R-07`/`R-17`; scan canônico do TAR; Trivy JSON, manifest e SBOM ligados ao candidato por image ID e hashes | Vincular manifesto, SHA, DB, image ID e JSON do scan. Criar OpenVEX JSON owner-approved apenas para achados que exijam disposição; delimitar ao candidato/produto/CVE, sem alegar assinatura criptográfica ou promoção. CVEs herdados da base seguem a política registrada. Não considerar banco vencido ou evidência ausente como aceite |
 | A-006 | F-006 / P3 | Unificar default KHAN_ENABLE_LOCK em código, imagem, Compose e docs | Verificada localmente: default `true` alinhado; override `false` validado | Decisão do owner registrada; teste multiprocesso A-012 | Mesmo default efetivo em todos; cenário de override explícito testado; A-012 usa lock habilitado |
-| A-007 | F-007 / P3 | Atualizar badges, contagens, tag/HEAD, snapshot e estado conhecido do push | Parcial: badge coincide com 86,96%; pin local F2 conferido pela WebUI e inventory/audit; HEAD/tag locais verificados; remote não consultado, sem push | Somente evidência local ou consulta autorizada | Docs coerentes com SHA/suíte/tag; referência remote-tracking datada não apresentada como consulta remota atual |
+| A-007 | F-007 / P3 | Atualizar badges, contagens, tag/HEAD, snapshot e estado conhecido do push | Parcial: badge coincide com 86,96%; pin local F2 conferido pela WebUI e inventory/audit; remoto observado inicialmente em `7e60053cb089ddf6f9900dd1c1faa2018b7b8745`; tag `v0.4.0` remota/local coincide em `b6afdbb334ea1b1a1fa86b01a445f77a786670e9`; em 2026-11-12 publicação autorizada atualizou `main` para `c11f4c06ea2b22986ef5017cb3abc577e987cd27` | Consulta autorizada; publicação efetuada por pedido explícito | Docs coerentes com SHA/suíte/tag e estado remoto datado |
 | A-008 | F-008 / P3 | Documentar e comprovar o encerramento SIGTERM/143 | Parcial: evidência histórica [E-033](../../../positronic-bean-IaC/docs/reports/evidence/percival-khan-calendar/919b6ab9bb1b/khan_sigterm.py) registra SIGTERM/143; não comprova liberação de lock durante SIGTERM nem integridade de escrita nesse cenário | `R-12`; combinar com A-001/A-002 em uma prova sintética antes da adoção do perfil broker | Uma execução sintética registra saída 143 e integridade dos dados após stop, sem presumir drain. Reutilizar A-012 para liberação de lock após crash; só testar lock sob SIGTERM se houver escrita ativa que possa ser interrompida |
-| A-009 | F-009 / P3 | Completar metadata `server.json` e extensão `pblabs.app.yaml` no índice local | Parcial: app manifest Khan passou validação do catálogo em 2026-10-31; `server.json` segue ausente e catálogo vazio. Índice continha alterações locais pré-existentes, preservadas | `R-06`, `R-14`; não criar referência de release sem digest de imagem publicada | Uma validação do metadata completo contra os schemas adotados; manter draft fora do catálogo instalável até haver imagem publicada com digest. Instruções de bind estreito e TZ ficam documentadas no mesmo perfil |
-| A-010 | F-010 / P3 | Fixar actions por SHA e verificar autenticação/origem do snapshot apt no build | Parcial: actions pinadas e verificação local não indicou bypass de assinatura; CI gateway pendente | Decisão de Bill; evidência técnica no workflow/CI | Workflow pinado; evidência do mecanismo de verificação; `check-valid-until=no` não é prova suficiente de assinatura desativada; exceção só por decisão justificada com dono/prazo |
+| A-009 | F-009 / P3 | Completar metadata `server.json` e extensão `pblabs.app.yaml` no índice local | Metadata draft concluído em 2026-11-12: `server.json` criado e validado contra MCP Registry schema 2025-12-11; identidade/versão coincidem com `pblabs.app.yaml`, também validado; catálogo segue vazio. Nenhum pacote OCI foi declarado sem digest publicado | `R-06`, `R-14`; não criar referência de release sem digest de imagem publicada | Metadata draft validado; permanecer fora do catálogo instalável até existir imagem publicada com digest. Instruções de bind estreito e TZ ficam no mesmo perfil |
+| A-010 | F-010 / P3 | Fixar actions por SHA e verificar autenticação/origem do snapshot apt no build | Verificada no CI GitHub em 2026-11-12 para HEAD `c11f4c06ea2b22986ef5017cb3abc577e987cd27`: `test (3.11)`, `test (3.12)` e `Docker build + smoke` passaram; o build apt, smokes MCP e geração de SBOM concluíram | Workflow pinado; run 39 concluído com sucesso | Actions fixadas por SHA; build gateway concluiu sem desativar verificação GPG; `check-valid-until=no` continua entendido apenas como configuração de validade temporal |
 | A-011 | F-011 / P3 | Validar KHAN_SUBPROCESS_TIMEOUT na configuração com erro de operador controlado | Verificada localmente por teste de regressão: exit 2, stderr controlado, stdout vazio e sem traceback | Política de configuração do produto registrada | Valor malformado falha controladamente sem traceback nem stdout poluído; não virar fallback silencioso sem decisão explícita |
 | A-012 | F-012 / P3 | Adicionar prova real de dois processos escrevendo com lock habilitado em workspace sintético | Verificada localmente: dois processos, 16 eventos únicos, listagem e liberação de lock após crash | A-006 verificada; workspace sintético | Dois escritores completam sem perda/corrupção do vdir/khal.db, dados/UID e locks íntegros; falha/crash libera lock conforme contrato |
 
@@ -165,10 +165,10 @@ somente se a configuração de apt ou a imagem base mudar.
    e cobertura foram reconciliados em 2026-10-31. A evidência local de SIGTERM
    não prova integridade de escrita nem liberação de lock nesse cenário.
 3. **KC-3 — entregas técnicas restantes:** A-005 foi verificada no candidato
-   local sem CVEs; A-009 ainda depende do metadata `server.json` apropriado a
-   um release. A-010 requer validar o resultado no CI gateway, sem duplicar
-   evidência local equivalente. Se/quando o perfil for adotado no broker, uma
-   única prova sintética cobre A-001/A-002/A-008.
+   local sem CVEs; o metadata draft de A-009 foi completado e validado em
+   2026-11-12, sem declarar pacote ou release sem digest publicado; A-010 passou
+   no CI gateway para o HEAD publicado. Se/quando o perfil for adotado no broker,
+   uma única prova sintética cobre A-001/A-002/A-008.
 
 S2-NB-X01 e S2-NB-X02 identificam trabalho técnico no broker e gateway, não
 owners ou aprovadores adicionais. Bill executa e decide. O perfil gerido só
@@ -234,10 +234,24 @@ estimativas de esforço, custo ou prazo.
   somente para achados que precisem de disposição, com escopo explícito do
   candidato/produto/CVE; aprovação não é assinatura criptográfica nem promoção.
   O candidato final teve zero CVEs e não requereu VEX.
-- [ ] Completar e validar o metadata de A-009. Antes de adotar o perfil broker,
+- [x] Completar e validar o metadata draft de A-009 em 2026-11-12: `server.json`
+  usa o schema MCP Registry 2025-12-11 e coincide em identidade/versão com
+  `pblabs.app.yaml`; ambos passam pelo validador do índice. Sem pacote OCI/digest
+  publicado, o catálogo permanece vazio e sem referência instalável.
+- [ ] Antes de adotar o perfil broker,
   executar uma única prova sintética combinando timezone, bind/persistência e
   SIGTERM/143; registrar integridade dos dados. Reutilizar a evidência de A-012
   para liberação de lock após crash, sem repetir o teste em cada ação.
+- [x] A-010: run 39 do GitHub Actions concluído com sucesso para o commit
+  publicado: testes Python 3.11/3.12 e Docker build + smoke passaram; o build apt
+  e os smokes de imagem completaram. Actions permanecem fixadas por SHA.
+- [x] A-007: snapshot remoto consultado em 2026-11-12: `main` remoto
+  `7e60053cb089ddf6f9900dd1c1faa2018b7b8745` é ancestral do HEAD local
+  `c11f4c06ea2b22986ef5017cb3abc577e987cd27` (dois commits à frente); tag
+  remota `v0.4.0` coincide com `b6afdbb334ea1b1a1fa86b01a445f77a786670e9`.
+  Após autorização explícita de Bill, publicado `main` para
+  `c11f4c06ea2b22986ef5017cb3abc577e987cd27`; o remoto foi confirmado nesse
+  OID. A publicação incluiu dois commits (`0afc939`, `c11f4c0`).
 - [ ] Registrar somente os `V-*` afetados pelo candidato. `V-PILOT` é trabalho
   futuro, iniciado por Bill; `V-REUSE` não é gate deste plano.
 - [x] Confirmar o badge de cobertura do README contra medição executada: ambos
@@ -350,6 +364,32 @@ estimativas de esforço, custo ou prazo.
   estar ativo em outro gestor. Os três IDs removidos liberaram cerca de 389 MB
   de camadas únicas. `docker system df` final: 10.32 GB de imagens; o total
   cresceu em comparação à fotografia inicial devido ao gateway atualizado.
+
+### Atualização de pendências — 2026-11-12
+
+- A-009: criado `servers/khan-calendar/server.json` no índice local canônico.
+  Validação Draft-07 contra `schemas/server.schema.2025-12-11.json` passou; a
+  identidade e versão coincidem com `pblabs.app.yaml`. `catalog.py --check`
+  passou (`catalog valid: 0 entries`) e os testes do índice passaram (10/10
+  usando `PYTHONPATH=.`). O catálogo permanece vazio: não existe imagem publicada
+  com digest e nenhum pacote OCI foi inventado. A criação ocorreu no índice,
+  sem alterar suas outras fontes ou gerar entrada de catálogo.
+- A-007: `vcs_status` observou inicialmente `main` remoto em
+  `7e60053cb089ddf6f9900dd1c1faa2018b7b8745`; consulta remota HTTPS observou a
+  tag `v0.4.0` em `b6afdbb334ea1b1a1fa86b01a445f77a786670e9`. O checkout está em
+  `c11f4c06ea2b22986ef5017cb3abc577e987cd27`. Após autorização explícita,
+  publicação via host executor concluiu de `7e60053` para esse HEAD; `vcs_status`
+  confirmou o remoto no novo OID.
+- A-010: run 39 do GitHub Actions concluiu com sucesso para o SHA publicado
+  `c11f4c06ea2b22986ef5017cb3abc577e987cd27`: os três jobs (`test (3.11)`,
+  `test (3.12)` e `Docker build + smoke`) passaram. O job Docker incluiu build da
+  imagem, `--version`, `--help`, conformance stdio, inspeção, manifest e SBOM.
+  Run: <https://github.com/bill-kopp-ai-dev/percival-khan-calendar/actions/runs/43316360347>.
+- A-001/A-002/A-008 permanecem condicionais à adoção do perfil no broker. A prova
+  sintética combinada ainda não foi executada. Inspeção Docker read-only observou
+  o container Percival Khan no image ID `sha256:0c4d7b334fc5a1c949019ffa466489e352fc67a69132eb95c99739461afea49d`, revisão de imagem `5b4698bf6a6693c7a22fec5239307930d1d84b48` e bind RW específico de Khan; isso não prova timezone, persistência após recriação nem SIGTERM/integridade. Na tentativa de 2026-11-12, o módulo de inventory do Percival não pôde ser executado: o symlink `.venv/bin/python` aponta para `/usr/local/bin/python3`, ausente neste ambiente; `docker exec` no gateway também retornou `Docker CLI unavailable`. O runbook requer operar pela interface suportada do owner, indisponível nesta sessão. **Próxima ação:** disponibilizar essa interface ou um ambiente Percival funcional para inventory; então executar uma única prova no workspace sintético, registrar TZ/bind/persistência e SIGTERM/143/integridade. Nenhuma mudança de perfil ou calendário real foi feita.
+- O plano segue **parcial**, não concluído: falta a prova broker antes da adoção
+  do perfil; `V-PILOT` permanece futuro e depende de decisão explícita.
 
 Mudança de default não autoriza mover calendário existente. Projeto com validação
 de runtime/CI pendente permanece parcial, mesmo com suíte local verde. A cobertura
