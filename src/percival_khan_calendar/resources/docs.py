@@ -69,6 +69,11 @@ the adapter and stored in UTC. ``icalendar`` properties mutated
 via ``ev["x"] = value`` would silently pick the ``+00:00`` form
 — we use ``.add(...)`` exclusively to keep the canonical form.
 
+For ``khan_create_event``, ``end`` may be a positive elapsed duration
+with one lowercase unit (``s``, ``m``, ``h`` or ``d``), such as
+``30m``. A day is 24 elapsed hours; duration is added after the start
+has been normalized to UTC. Without ``end``, the default is one hour.
+
 ## 4. Documented quirks
 
 ### khal 0.14.0 — relative windows can be TZ-dependent
@@ -104,8 +109,9 @@ recoverable, or with a leading descriptive line when it is.
   rejects separators, leading dot, anything outside
   ``[A-Za-z0-9_.-]{1,64}`` (defence-in-depth; today the tool layer
   hardcodes ``DEFAULT_CALENDAR``).
-* ``khan_export_ics(output_path=...)`` rejects output outside
-  ``$KHAN_WORKSPACE_DIR`` and refuses symlinks (security round 1).
+* ``khan_export_ics(output_path=...)`` resolves relative paths from
+  ``$KHAN_WORKSPACE_DIR`` (not the process working directory), rejects output
+  outside that workspace, and refuses symlinks (security round 1).
 * All free-text inputs go through a Pydantic argument-injection
   guard (rejects ``-`` prefix and ``--`` substring) plus a control-
   character sanitizer (security round 3).

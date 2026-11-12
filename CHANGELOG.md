@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Create-event duration and ICS export paths.** `khan_create_event` now
+  accepts positive elapsed durations in `end` (`<integer><s|m|h|d>`), and
+  relative `khan_export_ics` paths are anchored at `WORKSPACE_DIR` while
+  preserving traversal and symlink protections.
 - **VALARM persistence and preservation.** `khan_create_event` now stores
   alarms as RFC 5545 `VALARM` subcomponents, and `khan_update_event` copies
   existing subcomponents when rebuilding an event. The fix preserves the

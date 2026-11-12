@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from icalendar import Alarm, Calendar, Event
@@ -15,6 +16,7 @@ from percival_khan_calendar.adapters.khal_adapter import (
 from percival_khan_calendar.exceptions import (
     KhanAmbiguousMatchError,
     KhanNotFoundError,
+    KhanValidationError,
 )
 
 
@@ -50,6 +52,61 @@ def test_create_event_persists_ics(adapter_with_dir):
     assert b"Meeting" in raw
     assert b"Quarterly review" in raw
     assert b"Conf room A" in raw
+
+
+@pytest.mark.parametrize(
+    ("duration", "delta"),
+    [
+        ("30m", timedelta(minutes=30)),
+        ("2h", timedelta(hours=2)),
+        ("1d", timedelta(days=1)),
+        ("45s", timedelta(seconds=45)),
+    ],
+)
+def test_create_event_duration_is_elapsed_time_in_persisted_ics(adapter_with_dir, duration, delta):
+    start = datetime(2026, 11, 15, 10, tzinfo=timezone.utc)
+    match = adapter_with_dir.write_event(
+        title="Duration", start="ignored", end=duration, dtstart=start
+    )
+
+    raw = match.filepath.read_bytes()
+    assert b"DTSTART:20261115T100000Z" in raw
+    calendar = Calendar.from_ical(raw)
+    event = calendar.walk("VEVENT")[0]
+    assert event["DTEND"].dt - event["DTSTART"].dt == delta
+
+
+def test_create_event_duration_crossing_dst_is_elapsed_utc_time(adapter_with_dir):
+    start = datetime(2026, 3, 8, 1, 30, tzinfo=ZoneInfo("America/New_York"))
+    match = adapter_with_dir.write_event(
+        title="DST duration", start="ignored", end="1d", dtstart=start
+    )
+
+    event = Calendar.from_ical(match.filepath.read_bytes()).walk("VEVENT")[0]
+    assert event["DTEND"].dt - event["DTSTART"].dt == timedelta(days=1)
+    assert event["DTSTART"].dt.hour == 6
+    assert event["DTEND"].dt.hour == 6
+
+
+@pytest.mark.parametrize("duration", ["0m", "-1m", "1.5h", "1h30m", "30x", "9" * 64 + "d"])
+def test_create_event_rejects_invalid_duration_without_writing(adapter_with_dir, duration):
+    from pathlib import Path
+
+    existing = set(Path(adapter_with_dir._data_dir).rglob("*.ics"))
+    with pytest.raises(KhanValidationError):
+        adapter_with_dir.write_event(
+            title="Invalid duration", start="2026-11-15T10:00:00Z", end=duration
+        )
+    assert set(Path(adapter_with_dir._data_dir).rglob("*.ics")) == existing
+
+
+def test_create_event_duration_date_overflow_is_validation_error(adapter_with_dir):
+    from pathlib import Path
+
+    existing = set(Path(adapter_with_dir._data_dir).rglob("*.ics"))
+    with pytest.raises(KhanValidationError, match="too large"):
+        adapter_with_dir.write_event(title="Overflow", start="9999-12-31T23:59:59Z", end="1s")
+    assert set(Path(adapter_with_dir._data_dir).rglob("*.ics")) == existing
 
 
 @pytest.mark.parametrize(

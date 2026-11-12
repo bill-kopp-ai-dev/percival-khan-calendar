@@ -71,6 +71,52 @@ def test_export_ics_default_path(status_app, monkeypatch, isolated_workspace):
     assert b"E1" in body and b"E2" in body
 
 
+def test_export_ics_relative_path_is_workspace_anchored(
+    status_app, monkeypatch, isolated_workspace
+):
+    from icalendar import Calendar
+
+    outside_cwd = isolated_workspace.parent / "external-cwd"
+    outside_cwd.mkdir()
+    monkeypatch.chdir(outside_cwd)
+    fn = get_tool_fn(status_app, "khan_export_ics")
+
+    out = fn(output_path="backup.ics")
+
+    target = isolated_workspace / "backup.ics"
+    assert "Exported 0 events to 'backup.ics'" in out
+    assert target.exists()
+    assert not (outside_cwd / "backup.ics").exists()
+    assert Calendar.from_ical(target.read_bytes()).walk("VEVENT") == []
+
+
+def test_export_ics_relative_subdirectory_is_workspace_anchored(
+    status_app, monkeypatch, isolated_workspace
+):
+    subdir = isolated_workspace / "exports"
+    subdir.mkdir()
+    monkeypatch.chdir(isolated_workspace.parent)
+    fn = get_tool_fn(status_app, "khan_export_ics")
+
+    out = fn(output_path="exports/backup.ics")
+
+    assert "Exported 0 events" in out
+    assert (subdir / "backup.ics").exists()
+
+
+def test_export_ics_rejects_relative_traversal_without_external_write(
+    status_app, isolated_workspace
+):
+    outside = isolated_workspace.parent / "outside.ics"
+    outside.write_bytes(b"sentinel")
+    fn = get_tool_fn(status_app, "khan_export_ics")
+
+    out = fn(output_path="../outside.ics")
+
+    assert "Refused" in out
+    assert outside.read_bytes() == b"sentinel"
+
+
 def test_export_ics_rejects_path_traversal(status_app, isolated_workspace):
     fn = get_tool_fn(status_app, "khan_export_ics")
     out = fn(output_path="/etc/passwd")

@@ -154,13 +154,18 @@ Calling pattern:
                                               #     "monthly" / "yearly"
     )
 
-TIME-EXPRESSIONS (the ``start`` and ``end`` fields):
+TIME-EXPRESSIONS (``start`` and date/time values for ``end``):
 
 * ``"today"`` / ``"tomorrow"`` / ``"now"``
 * ``"DD/MM/YYYY"`` → all-day, midnight
 * ``"DD/MM/YYYY HH:MM"`` → exact local time  (PREFERRED for predictability)
 * ``"HH:MM"`` → today's wall clock at that time
 * ``"today HH:MM"`` / ``"tomorrow HH:MM"`` (compound)
+
+For ``end`` only, a positive elapsed duration may also be used: an integer
+followed by one lowercase unit ``s``, ``m``, ``h`` or ``d`` (for example
+``end="30m"``). ``1d`` means 24 elapsed hours. Invalid, zero, compound or
+unknown-unit durations are rejected. If ``end`` is omitted, the default is 1h.
 
 ALARM FORMAT — ``alarm="<n><unit>"`` where unit ∈ {{m, h, d}}:
 * ``"15m"`` 15 minutes before

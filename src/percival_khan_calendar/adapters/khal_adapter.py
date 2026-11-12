@@ -254,7 +254,7 @@ class KhalAdapter:
             if dtend:
                 ev.add("dtend", _to_utc_z(dtend))
             elif end:
-                ev.add("dtend", _to_utc_z(_parse_khal_time(end)))
+                ev.add("dtend", _to_utc_z(_resolve_event_end(end, start_dt)))
             else:
                 ev.add("dtend", _to_utc_z(start_dt + timedelta(hours=1)))
             if description:
@@ -477,6 +477,33 @@ def _parse_khal_time(value: str) -> datetime:
             the wrong date when the user mistyped the input.
     """
     return _parse_khal_time_wall_clock(value).astimezone(timezone.utc)
+
+
+_EVENT_DURATION_RE = re.compile(r"([0-9]+)([smhd])")
+
+
+def _resolve_event_end(value: str, start: datetime) -> datetime:
+    """Resolve an event end as either a khal time or elapsed duration."""
+    match = _EVENT_DURATION_RE.fullmatch(value)
+    if match is None:
+        return _parse_khal_time(value)
+
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if amount <= 0:
+        raise KhanValidationError(
+            f"Invalid event duration '{value}'. Expected a positive integer and unit s, m, h, or d."
+        )
+    try:
+        delta = {
+            "s": timedelta(seconds=amount),
+            "m": timedelta(minutes=amount),
+            "h": timedelta(hours=amount),
+            "d": timedelta(days=amount),
+        }[unit]
+        return start + delta
+    except OverflowError as exc:
+        raise KhanValidationError(f"Event duration '{value}' is too large.") from exc
 
 
 def _parse_khal_time_wall_clock(value: str) -> datetime:

@@ -75,7 +75,8 @@ def register_status_tools(mcp: FastMCP) -> None:
         """Export the entire nanobot calendar to a single .ics file.
 
         Parameters:
-        - output_path: absolute or relative path inside the workspace.
+        - output_path: absolute path inside the workspace, or relative to
+          ``WORKSPACE_DIR`` (not the process working directory).
           Empty defaults to ``<WORKSPACE_DIR>/export.ics``.
         """
         from icalendar import Calendar
@@ -84,11 +85,12 @@ def register_status_tools(mcp: FastMCP) -> None:
         # writes on error. The "user-supplied" path MUST be checked
         # for symlinks *as written* (before resolution) so a redirect
         # is caught at the source rather than at the resolved target.
-        if not output_path:
-            output_path = str(constants.WORKSPACE_DIR / "export.ics")
         try:
             workspace = constants.WORKSPACE_DIR.resolve()
-            output_unresolved = Path(output_path)
+            requested_path = Path(output_path) if output_path else Path("export.ics")
+            output_unresolved = (
+                requested_path if requested_path.is_absolute() else workspace / requested_path
+            )
             try:
                 lstat = output_unresolved.lstat()
                 if (lstat.st_mode & 0o170000) == 0o120000:

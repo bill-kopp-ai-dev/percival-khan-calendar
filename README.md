@@ -68,13 +68,20 @@ The server offers complete CRUD, visualisation, and admin tools.
 
 | Tool | Description |
 |---|---|
-| `khan_create_event` | Create events with alarms, recurrence, location, description. |
+| `khan_create_event` | Create events with alarms, recurrence, location, description, and explicit end times or durations such as `30m`. |
 | `khan_update_event` | In-place update preserving UID, RRULE, VALARM. |
 | `khan_delete_event` | Permanently remove an event. |
 | `khan_delete_event_safe` | **Two-call dry-run + confirm** protocol (default safe). |
-| `khan_export_ics` | Merge all events into a single `.ics` export. |
+| `khan_export_ics` | Merge all events into a single `.ics` export; relative paths are inside `WORKSPACE_DIR`. |
 
 Total: **12 tools**.
+
+`khan_create_event(end=...)` accepts an explicit date/time or a positive
+elapsed duration with one lowercase unit: `30m`, `2h`, `1d` (24 hours), or
+`45s`. If omitted, the duration defaults to one hour. `khan_export_ics` accepts
+`output_path="backup.ics"` (written as `$KHAN_WORKSPACE_DIR/backup.ics`) or an
+absolute path inside that workspace; relative paths do not depend on the
+server's current working directory.
 
 ---
 
@@ -274,6 +281,15 @@ Alternatively, run from source:
 ## 🛠️ Development & Testing
 
 This project uses `uv` for dependency management.
+
+### Runtime calendar test authorization
+
+On 2026-11-12, Bill Kopp explicitly authorized a functional test batch against
+the persistent calendar workspace `/data`. This authorization covered creating,
+updating, and deleting a uniquely named synthetic test event and exporting an
+ICS file within that workspace. The test event is to be removed after
+verification; this authorization is specific to that test batch and does not
+authorize unrelated calendar changes.
 
 ```bash
 # Sync environment (deps only)

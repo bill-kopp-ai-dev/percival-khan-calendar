@@ -39,7 +39,8 @@ def register_create_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
         - start (Required): Start date and/or time. Supports
           'today 14:00', 'tomorrow', 'DD/MM/YYYY HH:MM', or just
           'HH:MM'.
-        - end (Optional): End date/time or duration.
+        - end (Optional): End date/time or elapsed duration, e.g. '30m', '2h',
+          '1d', or '45s' (positive integer plus one lowercase unit).
         - description (Optional): Additional notes or details.
         - location (Optional): Where the event takes place.
         - alarm (Optional): Alert lead time (e.g., '15m', '1h', '2d').
