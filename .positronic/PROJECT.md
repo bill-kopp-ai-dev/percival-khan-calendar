@@ -10,28 +10,37 @@ o calendario (criar / listar / buscar / atualizar / deletar eventos, agenda,
 exportar `.ics`) sem regressao no contrato publico, com testes verdes e
 hardening preservado.
 
+Aplicacao da **Positronic Bean Labs** (<https://labs.positronicbean.com>).
+Owner, unico operador e unico signatario: **Bill Kopp**
+(`bill.kopp.dev@gmail.com`).
+
 ## Scope and success criteria
 
 Entregaveis:
 
 1. **Contrato publico preservado** -- 12 tools + 6 prompts + 1 resource
-   (`khan://schema/main`), com mesmos nomes e semantica. Qualquer mudanca de
-   nome/schema e breaking change e exige coordenacao com o time do consumidor
-   Nanobot antes de versionar.
+   (`khan://schema/main`), com mesmos nomes e semantica. Mudanca de
+   nome/schema e breaking change: Bill decide o versionamento. Verificar os
+   consumidores conhecidos (Nanobot) localmente e documentar as
+   incompatibilidades concretas; nenhum aceite externo e requerido.
 2. **Suite de testes verde** -- `uv run pytest` com cobertura embutida
-   >=80% (enforced em `[tool.pytest.ini_options].addopts`).
+   >=80% (enforced em `[tool.pytest.ini_options].addopts`). Verificar a suite
+   quando a mudanca tocar codigo Python ou antes de qualificar um candidato.
 3. **Hardening mantido** -- prompt injection shields (XML envelopes em todo
    conteudo externo), argument guard (rejeita `-` / `--` em free-text inputs),
    path-traversal guard em `calendar=`, auto-heal de `khal.conf` drift,
    canonical RFC-5545 `Z` em `DTSTART`/`DTEND` em create/update.
 4. **Lint/format limpos** -- `uv run --with ruff ruff check .` e
-   `uv run --with ruff ruff format .`.
-5. **Disciplina de bug-hunt** -- cada fix vem com regressao em `tests/`
-   (precedente: rounds 2-8).
+   `uv run --with ruff ruff format .`, quando houver mudanca Python.
+5. **Regressao direcionada por correcao** -- cada fix de comportamento recebe
+   regressao automatizavel em `tests/`. Mudancas documentais ou apenas
+   configuracionais sao validadas direto no artefato afetado; nao exigir
+   testes sem relacao com a mudanca.
 
-Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
--> buscar -> atualizar -> deletar, exportar `.ics`) **e** regressoes em
-`tests/` para cada bug corrigido.
+Evidencia de "funcionou": regressoes em `tests/` cobrindo o comportamento
+alterado. O smoke ponta-a-ponta contra o binario real `khal` (criar ->
+listar -> buscar -> atualizar -> deletar, exportar `.ics`) e a evidencia de
+qualificacao de um candidato de release -- nao uma exigencia por change.
 
 ## Methods and resources
 
@@ -49,8 +58,9 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
 ## Risks and governance
 
 1. **Contrato publico.** Mudancas em tool name, schema ou semantica sao
-   breaking -- coordenar com o time do consumidor Nanobot antes de
-   versionar.
+   breaking -- Bill decide o versionamento; verificar os consumidores
+   conhecidos localmente e documentar incompatibilidades concretas, sem
+   depender de aceite de terceiros.
 2. **Drift upstream.** `khal` / `icalendar` / FastMCP podem mudar
    comportamento (ex.: round-6 descobriu que `icalendar` v6 escolhe
    serializacao diferente entre `ev["x"] = value` e `.add(UPPER, value)`).
@@ -67,7 +77,12 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
    `${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`; calendários
    existentes em `~/.nanobot/workspace/khalCalendar` exigem override explícito.
    Não ocorre migração automática; sync com nuvem só com consentimento explícito.
-7. **Licenca MIT** mantida; copyright `percival.OS Team`.
+7. **Licenca MIT** mantida; copyright `Bill Kopp` (`LICENSE`). Nao ha
+   licenciante, consumidor ou revisor externo deste repositorio.
+
+Governance: owner unico. Checks sao evidencia, nao aprovacao adicional; nao
+existe gate de aceite externo nem segundo aceite da mesma decisao. Uma decisao
+registrada vale para o escopo declarado e nao precisa ser re-aprovada.
 
 ## Working conventions
 
@@ -77,11 +92,13 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
 - Testes: `uv run pytest` (cobertura embutida >=80% enforced via
   `pyproject.toml`). Filtro de integracao: `uv run pytest --no-cov -m integration`;
   excluir com `uv run pytest --no-cov -m "not integration"`.
-- Pre-commit: `.pre-commit-config.yaml`. CI em `.github/workflows/`.
+- Pre-commit: `.pre-commit-config.yaml`. CI em `.github/workflows/`. Rodar
+  apenas os hooks que tocam os arquivos alterados; nao e gate por change.
 - Cobertura report: `--cov-fail-under=80`, `show_missing=true`,
   `exclude_lines` documentadas em `pyproject.toml`.
-- Manutencao corretiva: cada fix vem com regressao em `tests/` que falha
-  sem o patch (precedente: rounds 2-8).
+- Manutencao corretiva: regressao direcionada em `tests/` que falha sem o
+  patch, quando automatizavel; mudancas documentais/configuracionais sao
+  validadas no artefato afetado.
 - Markdown table cells em `resources/docs.py` intencionalmente ignoram
   `E501`/`W605` (lidos por humanos, nao pelo lint layer).
 
@@ -89,25 +106,42 @@ Evidencia de "funcionou": smoke contra o binario real `khal` (criar -> listar
 
 - Canonical: `uv run pytest` (com `--cov=src/percival_khan_calendar` +
   `--cov-fail-under=80` + `--cov-report=term-missing` ja embutidos em
-  `[tool.pytest.ini_options].addopts`).
+  `[tool.pytest.ini_options].addopts`), quando a mudanca afetar codigo Python
+  ou antes de qualificar um candidato.
 - Opcional: `uv run --with ruff ruff check .`,
-  `uv run --with ruff ruff format --check .`, pre-commit.
+  `uv run --with ruff ruff format --check .`, pre-commit nos arquivos
+  alterados.
 - Live smoke (opt-in, fora do CI padrao): rodar o servidor contra uma
   instancia real do `khal`, validar `khan_get_status` + um
   create/list/delete ponta-a-ponta.
 
+Regras de proporcionalidade:
+
+- Nenhuma verificacao depende do "passou" de outra, e nenhuma exige aceite
+  adicional do owner.
+- Nao repetir verificacao equivalente para o mesmo commit, SHA ou imagem;
+  reaproveitar evidencia valida.
+- Nao exigir suite completa, lint e smoke simultaneamente por change: cada
+  verificacao entra quando cobre o que mudou.
+
 ## Open questions
 
-- **Release 0.4.0 (tagged 2026-09-26):** tag anotada `v0.4.0` em
-  `699072b` (HEAD local). 4 commits granulares: `feat(server)`
-  CLI `--version`/`--help`, `feat(docker)` Dockerfile/compose/CI,
-  `docs(release)` notas + sync, `chore(release)` bump + lockfile.
-  Contrato MCP preservado (12 tools + 6 prompts + 1 resource).
-  Tudo verificado localmente: `uv run pytest` verde (220 passed /
-  87.47%), `ruff check .` + `ruff format --check .` limpos,
-  `docker build` + `docker run --version` + `docker inspect` + smoke
-  via `docker compose run --rm server --version` verdes. Pendente:
-  autorizacao para `git push origin main && git push origin v0.4.0`.
+- **VALARM (aberto, P1):** `docs/issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md`
+  — create serializa `VALARM` como propriedade textual em vez de
+  sub-componente RFC 5545, e o update descarta `VALARM` canonico vindo de
+  fora. Duas falhas acopladas; nenhum regresso cobre o caminho hoje. Owner:
+  Bill Kopp.
+- **Release 0.4.0 (tagged 2026-09-26):** tag anotada `v0.4.0` apontando para
+  `9fd1451` (`docs: align README/AGENTS/PROJECT with v0.4.0 tag`). 4 commits
+  granulares: `feat(server)` CLI `--version`/`--help`, `feat(docker)`
+  Dockerfile/compose/CI, `docs(release)` notas + sync, `chore(release)` bump
+  + lockfile. Contrato MCP preservado (12 tools + 6 prompts + 1 resource).
+  Verificado localmente: `uv run pytest` verde (220 passed / 87.47%),
+  `ruff check .` + `ruff format --check .` limpos, `docker build` +
+  `docker run --version` + `docker inspect` + smoke via
+  `docker compose run --rm server --version` verdes. Push de `main` autorizado
+  por Bill em 2026-11-12; a publicacao da tag `v0.4.0` nao e coberta pelo
+  grant de `refs/heads` e permanece nao verificada no remoto.
 - **Docker empacotamento:** **entregue em v0.4.0**. Espelha o padrao
   `percival-agentmail-mcp` (multi-stage uv + python:3.12-slim, stdio
   MCP, OCI labels, UID 1000, env defaults via `:-`; `khal`

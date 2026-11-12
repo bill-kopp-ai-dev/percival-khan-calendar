@@ -14,15 +14,19 @@ re-reads on the next turn.
 - **Owner, sole operator, decision-maker, and signer:** Bill Kopp
   (`bill.kopp.dev@gmail.com`), Positronic Bean Labs.
 - **Website:** <https://labs.positronicbean.com>.
-- Bill is the only person working on this application and its IaC. No third-party
-  review, approval, or acceptance is required. Record each decision once and
-  reuse it within its stated scope; do not create repeated approval gates.
-- Technical checks are evidence, not additional approvals. Run only checks that
-  address a concrete acceptance, compatibility, or safety requirement; reuse
-  valid evidence for the same source/image instead of repeating it.
+- Bill is the sole owner of this application and of its IaC, and the only person
+  working on them. He is the only one who decides and signs. No third-party
+  review, approval, or acceptance is required or implied.
+- Record each decision once and reuse it within its stated scope. Do not ask
+  for the same consent again, require a second acceptance of the same
+  decision, or gate one check behind another.
+- Checks, tests, and scans are evidence, not approvals. Run only those that
+  address a concrete acceptance, compatibility, or safety requirement, and
+  reuse valid evidence for the same commit, source, or image instead of
+  regenerating it.
 - Production changes, publication, and real-calendar mutations still require
-  Bill's explicit instruction for that operation. This does not require a
-  second approval after he has instructed it.
+  Bill's explicit instruction for that operation. That instruction is the
+  approval; do not request it twice.
 
 ## Project identity
 
@@ -50,8 +54,9 @@ re-reads on the next turn.
 
 ## Verification
 
-- Escolher verificacoes que cubram o comportamento alterado; nao repetir
-  validacoes equivalentes para o mesmo SHA/imagem.
+- Verificacoes sao evidencia, nao aprovacao: nenhuma depende do "passou" de
+  outra. Escolher apenas as que cobrem o comportamento alterado; nao repetir
+  validacoes equivalentes para o mesmo commit/SHA/imagem.
 - **Canonical:** `uv run pytest` (cobertura embutida >=80% enforced via
   `[tool.pytest.ini_options].addopts`), quando a mudanca afetar codigo Python
   ou antes de qualificar um candidato.
@@ -95,6 +100,10 @@ sem exigir aceite de terceiros.
 
 ## Open questions
 
+- **VALARM (aberto, P1):** `docs/issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md`
+  — create grava `VALARM` como propriedade textual em vez de sub-componente
+  RFC 5545, e o update descarta `VALARM` canonico vindo de fora. Duas falhas
+  acopladas; nenhum regresso cobre o caminho hoje. Owner: Bill Kopp.
 - **Baseline stage-2:** checkout revalidado em `3dc7e8a`; `khal 0.14.0`
   está instalado no ambiente e embarcado como dependência travada da imagem.
 - **Docker empacotamento:** **entregue em v0.4.0**. Multi-stage
