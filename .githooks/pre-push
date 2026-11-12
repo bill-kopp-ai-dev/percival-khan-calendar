@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — scoped pre-push checks for percival-khan-calendar.
+# Activate with: git config core.hooksPath .githooks
+#
+# Policy: checks are evidence, not approvals. The hook runs only the checks
+# that cover what the push actually changes. A documentation-only push needs
+# no toolchain and passes immediately; a push that touches Python code runs
+# the canonical ruff and pytest checks recorded in AGENTS.md.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo_root" ]]; then
+  echo "pre-push: not inside a git work tree" >&2
+  exit 2
+fi
+
+resolve_base() {
+  local candidate
+  candidate="$(git rev-parse --verify --quiet '@{upstream}' 2>/dev/null || true)"
+  if [[ -n "$candidate" ]]; then
+    printf '%s' "$candidate"
+    return 0
+  fi
+  for candidate in origin/main origin/master; do
+    candidate="$(git rev-parse --verify --quiet "$candidate" 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+remote_sha=""
+while IFS=' ' read -r _local_ref _local_sha _remote_ref remote_sha; do
+  break
+done
+
+base=""
+if [[ -n "$remote_sha" && ! "$remote_sha" =~ ^0+$ ]]; then
+  base="$remote_sha"
+elif base="$(resolve_base)"; then
+  :
+else
+  echo "pre-push: could not determine the pushed range; skipping scoped checks"
+  exit 0
+fi
+
+if ! changed="$(git diff --name-only "$base..HEAD" 2>/dev/null)"; then
+  echo "pre-push: unable to diff $base..HEAD" >&2
+  exit 2
+fi
+
+if [[ -z "$changed" ]]; then
+  echo "pre-push: no changes detected; nothing to verify"
+  exit 0
+fi
+
+python_changed=0
+while IFS= read -r path; do
+  case "$path" in
+    *.py | pyproject.toml | uv.lock) python_changed=1 ;;
+  esac
+done <<<"$changed"
+
+if [[ "$python_changed" -eq 0 ]]; then
+  echo "pre-push: no Python, pyproject or uv.lock changes in this push; skipping code checks"
+  exit 0
+fi
+
+if ! command -v uv >/dev/null 2>&1; then
+  for candidate in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "/usr/local/bin/uv"; do
+    if [[ -x "$candidate" ]]; then
+      export PATH="$(dirname "$candidate"):$PATH"
+      break
+    fi
+  done
+fi
+if ! command -v uv >/dev/null 2>&1; then
+  echo "pre-push: uv not found in PATH; cannot run the canonical Python checks" >&2
+  exit 2
+fi
+
+cd "$repo_root"
+
+echo "pre-push: ruff check"
+uv run --with ruff ruff check .
+
+echo "pre-push: ruff format --check"
+uv run --with ruff ruff format --check .
+
+echo "pre-push: pytest"
+uv run pytest
