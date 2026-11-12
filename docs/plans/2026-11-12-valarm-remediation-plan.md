@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-12  
 **Issue:** [`2026-11-04-alarm-parameter-serializes-invalid-valarm.md`](../issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md)  
-**Estado:** planejado; implementação e verificações ainda não executadas.  
+**Estado:** executado e verificado localmente em 2026-11-12.
 **Owner e decisor:** Bill Kopp.
 
 ## Resultado pretendido
@@ -80,8 +80,17 @@ issue, publicar uma imagem ou modificar calendário real.
 - **Compatibilidade:** fix local, sem mudança de contrato; executar a suíte
   canônica e lint/format conforme convenções do projeto.
 
-## Estado e próximo passo
+## Execução e evidências
 
-Nenhuma implementação, teste ou atualização de changelog foi feita por este
-plano. Próximo passo: executar os passos 1–4, rodar as verificações de aceite e
-então atualizar issue e plano com resultados observados.
+- Create usa `Event.add_component(_make_valarm(alarm))`; update copia os
+  subcomponentes existentes com `copy.deepcopy` antes de anexá-los ao novo
+  evento.
+- Regressões de persistência e round-trip adicionadas em
+  `tests/test_khal_adapter.py`, cobrindo `15m`, `1h`, `2d`, VALARM externo e
+  VALARM criado pelo adaptador, além de UID, RRULE e DTSTART/DTEND em `Z`.
+- `./.venv/bin/pytest`: 239 passed, cobertura 87.75%; os 4 testes de integração
+  khal foram executados pela suíte.
+- `./.venv/bin/ruff check .` e `./.venv/bin/ruff format --check .`: passaram.
+- `CHANGELOG.md` e issue atualizados. Contrato MCP inalterado.
+- Não foram feitos smoke tests contra calendário real nem publicação/qualificação
+  de imagem; permanecem fora deste plano local.

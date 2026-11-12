@@ -100,10 +100,10 @@ sem exigir aceite de terceiros.
 
 ## Open questions
 
-- **VALARM (aberto, P1):** `docs/issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md`
-  — create grava `VALARM` como propriedade textual em vez de sub-componente
-  RFC 5545, e o update descarta `VALARM` canonico vindo de fora. Duas falhas
-  acopladas; nenhum regresso cobre o caminho hoje. Owner: Bill Kopp.
+- **VALARM (corrigido e verificado em 2026-11-12):**
+  `docs/issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md` — create
+  grava subcomponente RFC 5545 e update preserva subcomponentes; regressões em
+  disco cobrem ambos os caminhos. Suíte: 239 passed; ruff limpo.
 - **Baseline stage-2:** checkout revalidado em `3dc7e8a`; `khal 0.14.0`
   está instalado no ambiente e embarcado como dependência travada da imagem.
 - **Docker empacotamento:** **entregue em v0.4.0**. Multi-stage

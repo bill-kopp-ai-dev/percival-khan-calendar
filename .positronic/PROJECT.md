@@ -126,11 +126,11 @@ Regras de proporcionalidade:
 
 ## Open questions
 
-- **VALARM (aberto, P1):** `docs/issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md`
-  — create serializa `VALARM` como propriedade textual em vez de
-  sub-componente RFC 5545, e o update descarta `VALARM` canonico vindo de
-  fora. Duas falhas acopladas; nenhum regresso cobre o caminho hoje. Owner:
-  Bill Kopp.
+- **VALARM (resolvido e verificado em 2026-11-12):**
+  `docs/issues/2026-11-04-alarm-parameter-serializes-invalid-valarm.md` — create
+  grava VALARM como subcomponente RFC 5545 e update preserva subcomponentes;
+  regressões verificam os `.ics` persistidos. Suíte: 239 passed, cobertura
+  87.75%; ruff limpo.
 - **Release 0.4.0 (tagged 2026-09-26):** tag anotada `v0.4.0` apontando para
   `9fd1451` (`docs: align README/AGENTS/PROJECT with v0.4.0 tag`). 4 commits
   granulares: `feat(server)` CLI `--version`/`--help`, `feat(docker)`

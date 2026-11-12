@@ -264,7 +264,7 @@ class KhalAdapter:
             if recurrence:
                 ev.add("rrule", _to_rrule(recurrence))
             if alarm:
-                ev.add("valarm", _make_valarm(alarm))
+                ev.add_component(_make_valarm(alarm))
             return _persist_event(cal_name, ev, base_dir=self._data_dir)
 
     def update_event(
@@ -333,6 +333,10 @@ class KhalAdapter:
                 if str(prop).upper() in _handled:
                     continue
                 new_ev.add(prop, old_ev[prop])
+            # VALARM and other nested components are not Event properties;
+            # preserve them explicitly when rebuilding the Event.
+            for component in old_ev.subcomponents:
+                new_ev.add_component(copy.deepcopy(component))
             # Apply the requested overrides AFTER the copy so they win.
             # IMPORTANT: use ``.add(...)`` (not subscript assignment)
             # because icalendar v6's ``ev["x"] = value`` path picks

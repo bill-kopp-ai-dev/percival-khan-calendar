@@ -1,6 +1,6 @@
 # Issue: parâmetro `alarm` serializa VALARM inválido e o update apaga VALARM canônico
 
-- **Status:** aberta
+- **Status:** resolvida no código; regressões e verificações locais passaram em 2026-11-12
 - **Prioridade sugerida:** P1 — o alarme criado pelo servidor não é reconhecido por nenhum cliente de calendário, e o caminho de update destrói alarmes de eventos criados fora do servidor
 - **Identificada em:** 2026-11-04, teste funcional do servidor MCP `khan-calendar` 0.4.0 no runtime global (imagem `sha256:7363f232…`, tag `percival-khan-calendar:0.4.0-731a435`)
 - **Owner / decisão:** Bill Kopp
@@ -144,3 +144,20 @@ canônico no disco que o update apagaria.
   update preserving UID, RRULE, VALARM".
 - `CHANGELOG.md` — entrada S6 sobre `ev.add` vs subscript assignment.
 - `tests/test_security_round2.py:98` — única menção a VALARM nos testes.
+
+## Resolução e evidências (2026-11-12)
+
+- Create agora anexa `_make_valarm(alarm)` por `Event.add_component`, gerando
+  `BEGIN:VALARM` / `END:VALARM` em vez de uma propriedade textual.
+- Update agora copia cada subcomponente do evento original usando
+  `add_component(copy.deepcopy(component))`; propriedades como RRULE continuam
+  no caminho de cópia existente.
+- `tests/test_khal_adapter.py` verifica o arquivo persistido para `15m`, `1h` e
+  `2d`, incluindo os TRIGGER textuais `-PT15M`, `-PT1H` e `-P2D` e o parse de
+  TRIGGER como `timedelta`. Também cobre update com VALARM canônico externo e
+  criado pelo adaptador, preservando UID, RRULE e DTSTART/DTEND em `Z`.
+- Verificações executadas no checkout: `pytest` — 239 passed, cobertura 87.75%
+  (inclui os 4 testes marcados de integração khal); `ruff check .` e
+  `ruff format --check .` passaram.
+- Contrato público não foi alterado. Não foi feito smoke contra calendário
+  real nem qualificação/publicação de imagem.

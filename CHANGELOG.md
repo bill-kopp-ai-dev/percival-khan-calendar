@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **VALARM persistence and preservation.** `khan_create_event` now stores
+  alarms as RFC 5545 `VALARM` subcomponents, and `khan_update_event` copies
+  existing subcomponents when rebuilding an event. The fix preserves the
+  existing tools contract and alarm trigger semantics.
+
 ### Changed
 - Refactor: roadmap published in `MCP_Docs/refactor_plans/percival-khan-calendar/`.
 

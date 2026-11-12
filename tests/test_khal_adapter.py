@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from icalendar import Alarm, Calendar, Event
 
 from percival_khan_calendar.adapters.khal_adapter import (
     EventMatch,
@@ -48,6 +50,38 @@ def test_create_event_persists_ics(adapter_with_dir):
     assert b"Meeting" in raw
     assert b"Quarterly review" in raw
     assert b"Conf room A" in raw
+
+
+@pytest.mark.parametrize(
+    ("alarm", "expected_trigger", "expected_ical_trigger"),
+    [
+        ("15m", timedelta(minutes=-15), b"TRIGGER:-PT15M"),
+        ("1h", timedelta(hours=-1), b"TRIGGER:-PT1H"),
+        ("2d", timedelta(days=-2), b"TRIGGER:-P2D"),
+    ],
+)
+def test_create_event_persists_valid_valarm(
+    adapter_with_dir, alarm, expected_trigger, expected_ical_trigger
+):
+    match = adapter_with_dir.write_event(
+        title="Alarmed",
+        start="2026-11-15T10:00:00Z",
+        alarm=alarm,
+    )
+
+    raw = match.filepath.read_bytes()
+    assert b"BEGIN:VALARM" in raw
+    assert b"END:VALARM" in raw
+    assert b"VALARM:VALARM(" not in raw
+    assert expected_ical_trigger in raw
+
+    calendar = Calendar.from_ical(raw)
+    event = calendar.walk("VEVENT")[0]
+    valarms = [component for component in event.subcomponents if component.name == "VALARM"]
+    assert len(valarms) == 1
+    assert isinstance(valarms[0], Alarm)
+    assert str(valarms[0]["ACTION"]) == "DISPLAY"
+    assert valarms[0]["TRIGGER"].dt == expected_trigger
 
 
 def test_event_uid_is_unique(adapter_with_dir):
@@ -132,6 +166,56 @@ def test_update_event_preserves_rrule(adapter_with_dir):
     assert matches[0].uid == original_uid
     # RRULE preserved
     assert matches[0].event.get("rrule") is not None
+
+
+@pytest.mark.parametrize("source", ["external", "adapter"])
+def test_update_event_preserves_valarm_and_event_identity(adapter_with_dir, source):
+    adapter = adapter_with_dir
+    if source == "adapter":
+        original = adapter.write_event(
+            title="Alarmed",
+            start="2026-11-15T10:00:00Z",
+            alarm="1h",
+            recurrence="weekly",
+        )
+    else:
+        external_event = Event()
+        external_event.add("uid", "external-alarm@example.test")
+        external_event.add("summary", "Alarmed")
+        external_event.add("dtstart", datetime(2026, 11, 15, 10, tzinfo=timezone.utc))
+        external_event.add("dtend", datetime(2026, 11, 15, 11, tzinfo=timezone.utc))
+        external_event.add("rrule", {"freq": "weekly"})
+        external_alarm = Alarm()
+        external_alarm.add("action", "DISPLAY")
+        external_alarm.add("trigger", timedelta(minutes=-15))
+        external_event.add_component(external_alarm)
+        original = adapter.write_event(
+            title="Temporary",
+            start="2026-11-15T10:00:00Z",
+        )
+        external_calendar = Calendar()
+        external_calendar.add("prodid", "-//External Calendar//EN")
+        external_calendar.add("version", "2.0")
+        external_calendar.add_component(external_event)
+        original.filepath.write_bytes(external_calendar.to_ical())
+        original_uid = "external-alarm@example.test"
+
+    if source == "adapter":
+        original_uid = original.uid
+
+    adapter.update_event("Alarmed", fields={"location": "Updated"})
+
+    raw = original.filepath.read_bytes()
+    assert b"BEGIN:VALARM" in raw
+    assert b"DTSTART:20261115T100000Z" in raw
+    assert b"DTEND:20261115T110000Z" in raw
+    calendar = Calendar.from_ical(raw)
+    event = calendar.walk("VEVENT")[0]
+    assert str(event["UID"]) == original_uid
+    assert event.get("RRULE") is not None
+    valarms = [component for component in event.subcomponents if component.name == "VALARM"]
+    assert len(valarms) == 1
+    assert valarms[0]["TRIGGER"].dt == timedelta(minutes=-15 if source == "external" else -60)
 
 
 def test_delete_event(adapter_with_dir):
