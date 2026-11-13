@@ -32,3 +32,9 @@ data/
 
 # Local Percival integration working note (not for the public repo)
 docs/percival-integration.md
+
+# Project-local planning and operator instructions (keep out of the public repo)
+docs/issues/
+docs/plans/
+AGENTS.md
+.positronic/

@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existing tools contract and alarm trigger semantics.
 
 ### Changed
-- Refactor: roadmap published in `MCP_Docs/refactor_plans/percival-khan-calendar/`.
+- The Docker runtime now installs `khal` from the locked Python dependencies;
+  calendar tools do not require a host executable or binary bind mount.
+- The Compose recipe uses a read-only root filesystem, drops Linux capabilities,
+  and keeps calendar state on the `/data` bind mount.
+- Docker CI verifies writable XDG state ownership and MCP stdio conformance.
 
 ## [0.4.0] - 2026-09-26
 

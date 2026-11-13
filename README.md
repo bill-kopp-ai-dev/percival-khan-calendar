@@ -1,378 +1,89 @@
-# 🤖 Percival Khan Calendar — percival.OS MCP
+# Percival Khan Calendar
 
-**Version 0.4.0**
+Docker-first, stdio MCP server for managing a local calendar with [`khal`](https://github.com/pimutils/khal).
+The server exposes 12 tools, 6 prompts and the `khan://schema/main` reference resource.
 
-[![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)]()
-[![MCP](https://img.shields.io/badge/mcp-server-blue.svg)]()
-[![Tests](https://img.shields.io/badge/tests-234%2F234-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-86.96%25-green.svg)]()
-[![Docker](https://img.shields.io/badge/docker-stdio%20MCP-blue.svg)]()
-[![percival.OS](https://img.shields.io/badge/percival.OS-ecosystem-orange.svg)](https://github.com/bill-kopp-ai-dev/percival.OS)
+Calendar data stays in a local workspace mounted into the container. The server does not expose a network port; an MCP client communicates with it over stdin/stdout.
 
-## 📋 Description
+## Features
 
-**Percival Khan Calendar** is an MCP server that gives the Nanobot
-agent autonomous, persistent, and secure capabilities to manage a local
-calendar on top of the `khal` library.
+- Read, search, view, create, update and delete calendar events; safely preview deletions and export ICS.
+- Create timed or all-day events, with recurrence, location, description and alarms.
+- Preserve event UID, recurrence rules and VALARM subcomponents on updates.
+- Protect concurrent writes with a workspace lock enabled by default.
+- Run as a non-root user (UID/GID `1000:1000`) with a read-only container root, dropped Linux capabilities and no exposed ports.
+- Include `khal` and all runtime dependencies in the image; no host `khal` executable or source-code bind mount is required.
 
-This server is part of the **percival.OS** ecosystem — a Personal
-Agentic Operating System designed for autonomy, security, and absolute
-privacy.
+## MCP surface
 
-Since **v0.2.3** and unchanged in **v0.4.0**, the server exposes the
-following MCP surface:
-- **12 tools** for CRUD + visualisation + admin,
-- **6 prompt primitives** to inject workflows and field semantics
-  into the agent's reasoning,
-- **1 text/markdown resource** (`khan://schema/main`) for on-demand
-  technical reference.
+### Tools
 
----
-
-## 🛡️ percival.OS Principles
-
-Like every component of `percival.OS`, this MCP server strictly follows our core principles:
-
-- **Local-First & Private**: Operates entirely on the local
-  filesystem. Your appointments are never sent to the cloud
-  without your explicit consent.
-- **Data Sovereignty**: The calendar is stored in your
-  infrastructure, ensuring your schedule remains private.
-- **Hardened Security**: We implement "Prompt Injection Shields"
-  by wrapping calendar data in XML tags and providing explicit
-  instructions to the LLM to prevent indirect manipulation.
-  Free-text inputs go through a Pydantic argument-injection
-  guard (rejects leading `-` and `--` substrings).
-- **Transparency**: Open-source and auditable to ensure full
-  governance of your data.
-
----
-
-## 🚀 Tools
-
-The server offers complete CRUD, visualisation, and admin tools.
-
-### Read
-
-| Tool | Description |
+| Tool | Purpose |
 |---|---|
-| `khan_list_events` | List events in a window (``today``/``tomorrow``/``DD/MM/YYYY`` + ``7d``/``1d``). |
-| `khan_search_events` | Full-text substring search across the calendar. |
-| `khan_get_event` | Inspect a single event's full details (UID, file, RRULE). |
-| `khan_view_agenda` | Chat-friendly agenda list (mobile/Telegram format). |
-| `khan_view_calendar` | Visual ASCII month grid with bullet markers. |
-| `khan_list_calendars` | List calendars configured in `khal.conf`. |
-| `khan_get_status` | Operational status incl. workspace + conf drift detection. |
+| `khan_list_events` | List events in a date window. |
+| `khan_search_events` | Search event text. |
+| `khan_get_event` | Inspect one event and its details. |
+| `khan_view_agenda` | Render a concise agenda. |
+| `khan_view_calendar` | Render a text month calendar. |
+| `khan_list_calendars` | List configured calendars. |
+| `khan_get_status` | Report workspace and `khal.conf` status. |
+| `khan_create_event` | Create a timed or all-day event. |
+| `khan_update_event` | Update an event while preserving its UID and supported components. |
+| `khan_delete_event` | Delete an event by a specific match. |
+| `khan_delete_event_safe` | Preview a match, then delete only after confirmation. |
+| `khan_export_ics` | Export calendar events to an ICS file. |
 
-### Mutate
+`khan_create_event` accepts a date-only start for an all-day event. Its `end` may be an explicit date/time or a positive elapsed duration such as `30m`, `2h`, `1d` (24 hours) or `45s`; when omitted, it defaults to one hour. `khan_export_ics` anchors relative output paths inside the configured workspace and rejects paths escaping it.
 
-| Tool | Description |
-|---|---|
-| `khan_create_event` | Create events with alarms, recurrence, location, description, and explicit end times or durations such as `30m`. |
-| `khan_update_event` | In-place update preserving UID, RRULE, VALARM. |
-| `khan_delete_event` | Permanently remove an event. |
-| `khan_delete_event_safe` | **Two-call dry-run + confirm** protocol (default safe). |
-| `khan_export_ics` | Merge all events into a single `.ics` export; relative paths are inside `WORKSPACE_DIR`. |
+### Prompts and resource
 
-Total: **12 tools**.
+The six prompts are `khan_overview`, `khan_create_event_semantics`, `khan_update_workflow`, `khan_delete_with_confirmation`, `khan_search_strategy` and `khan_quick_action_quick_create`. The `khan://schema/main` Markdown resource provides on-demand technical reference.
 
-`khan_create_event(end=...)` accepts an explicit date/time or a positive
-elapsed duration with one lowercase unit: `30m`, `2h`, `1d` (24 hours), or
-`45s`. If omitted, the duration defaults to one hour. `khan_export_ics` accepts
-`output_path="backup.ics"` (written as `$KHAN_WORKSPACE_DIR/backup.ics`) or an
-absolute path inside that workspace; relative paths do not depend on the
-server's current working directory.
+## Run with Docker
 
----
+### Build and smoke-test
 
-## 🧭 MCP Prompts (stable since v0.2.3)
-
-The server registers **6 prompt primitives** that the agent can pull
-via `prompts/get` whenever it needs explicit guidance on workflows or
-field semantics that don't fit in a one-sentence tool description.
-
-| Prompt | Args | When to use |
-|---|---|---|
-| `khan_overview` | — | Start of session; full server tour + workflow |
-| `khan_create_event_semantics` | — | Pre-flight for `khan_create_event` (time/alarm/recurrence syntax) |
-| `khan_update_workflow` | — | UID/RRULE/VALARM preservation rules |
-| `khan_delete_with_confirmation` | — | Two-call dry-run + confirm protocol |
-| `khan_search_strategy` | `keyword: str`, `scope: Literal[summary\|location\|description]="summary"` | Field-qualified substring search |
-| `khan_quick_action_quick_create` | `user_intent: str` | Verbatim echo + PT-BR date mapping for free-form intents |
-
-Example usage from a tool-calling agent:
-
-```python
-rendered = mcp.get_prompt(
-    "khan_quick_action_quick_create",
-    {"user_intent": "dentista amanhã 10h"},
-)
-# rendered.messages[0].content contains the verbatim intent + mapping hints
-```
-
----
-
-## 📂 MCP Resources (stable since v0.2.3)
-
-A single static Markdown reference is available at `khan://schema/main`
-(MIME `text/markdown`). The agent reads this **on demand** when it
-needs detailed technical info (storage layout, khal.conf format,
-datetime semantics, error taxonomy, codebase map) without inflating
-the per-turn prompt context.
-
-```
-ReadResourceResult(
-    contents=[TextContent(
-        uri="khan://schema/main",
-        mime_type="text/markdown",
-        text="..."  # ~150 lines of canonical reference
-    )]
-)
-```
-
-> **Why lazy?** `prompts/list` is content-injected; `resources/read`
-> is lazy. Keeping the canonical reference out of the system prompt
-> saves ~2k tokens per turn while still giving the LLM access when
-> it asks for it.
-
----
-
-## 🆕 Recent Improvements (post v0.2.0)
-
-This release includes three rounds of bug fixes and feature work:
-
-- **Auto-heal of drifted `khal.conf`** (`lifecycle._khal_conf_is_stale`):
-  every boot compares the on-disk `khal.conf` against the rendered
-  template (CRLF-normalised) and rewrites on divergence. Removes the
-  silent-empty-`khan_list_events` failure mode after workspace migration.
-- **S6 — canonical RFC-5545 `Z` form**: `DTSTART`/`DTEND` are now
-  emitted as `YYYYMMDDTHHMMSSZ` on both create and update paths
-  (was previously emitting `2026-07-23 12:30:00+00:00` after
-  `khan_update_event`).
-- **`constants.CONF_FILE` attribute access** in `subprocess_runner`
-  so `monkeypatch`/runtime mutation propagates (was previously
-  captured at module-import time).
-- **Real-khal-CLI integration tests** (`pytest --no-cov -m integration`):
-  the previously-mocked `subprocess.run` is now exercised end-to-end
-  against the real `khal 0.14.0` binary, catching layout drift
-  before release.
-- **Path-traversal guard** on the `calendar=` field
-  (`KhalAdapter._validate_calendar_name`): rejects separators,
-  leading dot, anything outside `[A-Za-z0-9_.-]{1,64}`.
-- **Boot re-entrancy** (`server.main()`): each invocation constructs
-  a fresh `FastMCP` instance instead of reusing the module-level
-  global.
-
-Last pre-stage-2 baseline: **87.47%**. Four tests are marked `integration`;
-the full test suite runs them when khal is installed, or skips them otherwise.
-Use `--no-cov -m integration` to run only that set.
-
----
-
-## 🐛 Bug History (Round-6 / Round-7)
-
-Two production bugs were fixed and pinned with regression tests.
-
-### `khan_list_events` returning empty despite existing events (Round 6)
-
-Two-layer root cause:
-
-1. **`lifecycle.setup_workspace`** only regenerated `khal.conf`
-   when the file was **absent**. After the round-5 fix that moved
-   the vdir `path` from `DATA_DIR` to `DATA_DIR/<calendar>`, existing
-   workspaces kept the **stale** `khal.conf` pointing one level above
-   where the adapter actually writes. Since `khal`'s vdir reader is
-   non-recursive, every event written by the adapter was hidden
-   from `khal list`.
-2. **`subprocess_runner.executar_comando_khal`** imported
-   `CONF_FILE` via `from ..constants import CONF_FILE` — a
-   module-level binding captured at import time. Production
-   monkeypatches / runtime mutations of `constants.CONF_FILE` were
-   ignored.
-
-Fix: `lifecycle._khal_conf_is_stale()` plus attribute-access read
-of `constants.CONF_FILE` in `executar_comando_khal`. The full
-investigation is captured in
-`MCP_Docs/Issues/2026-07-22-percival-khan-calendar-list-events-mismatch.md`.
-
-### `DTSTART:…+00:00` after `khan_update_event` (Round 6 / S6)
-
-Cosmetic but real: after `khan_update_event` the on-disk .ics
-re-serialised `DTSTART` and `DTEND` as `2026-07-23 12:30:00+00:00`
-instead of the canonical RFC-5545 `20260723T123000Z` form. Both
-are valid UTC datetimes, but the inconsistency broke interop with
-calendar clients importing the exported `.ics`.
-
-Root cause: `icalendar` v6's serializer choice depends on *which
-method* was used to assign the property (`ev["x"] = value`
-silently picks `+00:00`; `.add(UPPER, value)` picks `Z`). The
-update path used subscript assignment.
-
-Fix: `adapters/khal_adapter.py::_to_utc_z` normalises every
-datetime to `tzinfo=timezone.utc` exactly, and the rebuild-Events
-logic uses `.add(...)` exclusively. Regression test in
-`tests/test_security_round6.py::TestDTStartSerializationCanonical`.
-
----
-
-## ⚙️ Configuration in percival.OS (Nanobot)
-
-Add the following configuration to your `~/.nanobot/config.json`:
-
-```json
-{
-  "tools": {
-    "mcpServers": {
-      "percival-khan-calendar": {
-        "command": "percival-khan-calendar",
-        "args": [],
-        "env": {
-          "PYTHONUNBUFFERED": "1",
-          "KHAN_TIMEZONE": "America/Sao_Paulo",
-          "KHAN_ENABLE_LOCK": "true",
-          "KHAN_LOG_LEVEL": "INFO"
-        },
-        "toolTimeout": 60
-      }
-    }
-  }
-}
-```
-
-Alternatively, run from source:
-
-```json
-{
-  "tools": {
-    "mcpServers": {
-      "percival-khan-calendar": {
-        "command": "uv",
-        "args": [
-          "run",
-          "--directory",
-          "/path/to/percival-khan-calendar",
-          "python",
-          "-m",
-          "percival_khan_calendar.server"
-        ],
-        "env": {
-          "UV_PROJECT_ENVIRONMENT": "/path/to/shared/.venv",
-          "PYTHONPATH": "/path/to/percival-khan-calendar/src"
-        },
-        "toolTimeout": 60
-      }
-    }
-  }
-}
-```
-
-### Environment variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `KHAN_WORKSPACE_DIR` | `${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar` | Where the calendar state lives. Existing workspaces require an explicit override; no automatic migration occurs. |
-| `KHAN_TIMEZONE` | `America/Sao_Paulo` | IANA timezone used for wall-clock dates and khal display. |
-| `KHAN_DEFAULT_CALENDAR` | `nanobot` | Calendar name under `data/<calendar>/*.ics`. |
-| `KHAN_ENABLE_LOCK` | `true` | If `true`, uses `fcntl.flock` on every write; disable only with a guaranteed single writer. |
-| `KHAN_LOG_LEVEL` | `INFO` | Standard Python logging level. |
-
----
-
-## 🛠️ Development & Testing
-
-This project uses `uv` for dependency management.
-
-### Runtime calendar test authorization
-
-On 2026-11-12, Bill Kopp explicitly authorized a functional test batch against
-the persistent calendar workspace `/data`. This authorization covered creating,
-updating, and deleting a uniquely named synthetic test event and exporting an
-ICS file within that workspace. The test event is to be removed after
-verification; this authorization is specific to that test batch and does not
-authorize unrelated calendar changes.
+Requires Docker Engine with BuildKit support and Python 3.11+ for the metadata command below. `VERSION` must match `pyproject.toml`; `GIT_SHA` must be a 7–40 character lowercase commit hash (optionally suffixed `-dirty`), or `local` for a development build.
 
 ```bash
-# Sync environment (deps only)
-uv sync
-
-# Sync including optional test deps
-uv sync --extra test
-
-# Run unit tests (default; no khal binary required)
-uv run pytest
-
-# Run integration tests (opt-in; disable the full-suite coverage threshold)
-uv run pytest --no-cov -m integration
-
-# Run with coverage
-uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
-```
-
-Lint and format:
-
-```bash
-uv run --with ruff ruff check .
-uv run --with ruff ruff format .
-```
-
----
-
-## 🐳 Docker (v0.4.0)
-
-A multi-stage `Dockerfile` is shipped from v0.4.0 onward. The resulting
-image is a self-contained stdio MCP server (non-root UID 1000, no
-exposed ports, ~330 MB on python:3.12-slim) that plugs into Nanobot,
-opencode, the Docker MCP Toolkit gateway, Claude Desktop, VS Code, or
-any MCP-aware client.
-
-> **Scope note.** This cycle ships a **local-first** image only: no
-> `server.yaml` / `tools.json`, no submission to the official
-> [Docker MCP Registry](https://hub.docker.com/mcp) yet. The image
-> runs against Nanobot, opencode and the Docker MCP Toolkit gateway
-> (as a plain Docker image, not as a catalog entry).
->
-> **About `khal`.** `khal` is included through the project's locked
-> Python dependencies and installed in the image, so all 12 tools are
-> available without a host executable mount.
-
-### Quick start
-
-```bash
-# 1. Build the image locally (VERSION must match pyproject.toml).
 VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
 GIT_SHA=$(git rev-parse --short HEAD)
 test -z "$(git status --porcelain)" || GIT_SHA="${GIT_SHA}-dirty"
 docker build --build-arg VERSION="$VERSION" --build-arg GIT_SHA="$GIT_SHA" \
   -t percival-khan-calendar:dev .
 
-# 2. Smoke (offline, no network):
 docker run --rm percival-khan-calendar:dev --version
-# → Percival Khan Calendar MCP Server version 0.4.0
+```
 
-# 3. Spawn stdio with a persistent, narrowly scoped calendar workspace:
+The image runs the MCP server over stdio. Mount a persistent host workspace at `/data`; the host directory must be writable by UID/GID `1000:1000` (or have an ACL granting that access):
+
+```bash
 install -d "$HOME/.local/share/percival/khan-calendar"
+sudo chown 1000:1000 "$HOME/.local/share/percival/khan-calendar"
 docker run --rm -i --init --user 1000:1000 \
   -v "$HOME/.local/share/percival/khan-calendar:/data" \
   percival-khan-calendar:dev
 ```
 
-### With `docker compose`
+The server keeps calendar state in the mounted directory across container runs. Choose a dedicated workspace and back it up according to your needs.
 
-The shipped `docker-compose.yml` binds the calendar directory (default
-`${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`, override with
-`KHAN_CALENDAR_DATA_HOST_PATH`) to `/data`, exposes nothing, and spawns the
-server in stdio mode (`stdin_open: true`, `tty: false`). Create the host path
-first; it must be writable by container UID/GID `1000:1000`:
+### Docker Compose
+
+The included `docker-compose.yml` is a local run recipe. It builds the image, uses stdio without a TTY, enables a read-only root filesystem and mounts the persistent workspace at `/data`.
 
 ```bash
-docker compose build
 install -d "$HOME/.local/share/percival/khan-calendar"
 sudo chown 1000:1000 "$HOME/.local/share/percival/khan-calendar"
+docker compose build
 docker compose run --rm -T server --version
-docker compose run --rm -T server   # stdio MCP
+docker compose run --rm -T server
 ```
 
-### With Nanobot (`~/.nanobot/config.json`)
+Override the host workspace with `KHAN_CALENDAR_DATA_HOST_PATH`. Optional runtime settings can be placed in a local `.env` file based on `.env.example`; `.env` is excluded from the image build context and ignored by Git.
+
+### Configure an MCP client
+
+For Nanobot, add an entry to `~/.nanobot/config.json` (use absolute paths for the Compose file and workspace):
 
 ```json
 {
@@ -381,8 +92,7 @@ docker compose run --rm -T server   # stdio MCP
       "percival-khan-calendar": {
         "command": "docker",
         "args": [
-          "compose", "-f",
-          "/path/to/percival-khan-calendar/docker-compose.yml",
+          "compose", "-f", "/absolute/path/to/percival-khan-calendar/docker-compose.yml",
           "run", "--rm", "-T", "server"
         ],
         "env": {}
@@ -392,197 +102,49 @@ docker compose run --rm -T server   # stdio MCP
 }
 ```
 
-Or without compose, pointing straight at the image:
+Other stdio MCP clients can launch the same `docker compose ... run --rm -T server` command. Alternatively, use `docker run --rm -i` with the image and `/data` bind mount shown above. The Docker MCP Toolkit can also launch a local image through its gateway; this repository does not currently include Docker MCP Registry catalog metadata or publish an image automatically.
 
-```json
-{
-  "tools": {
-    "mcpServers": {
-      "percival-khan-calendar": {
-        "command": "docker",
-        "args": [
-          "run", "--rm", "-i",
-          "-v", "/absolute/path/to/percival/khan-calendar:/data",
-          "percival-khan-calendar:dev"
-        ],
-        "env": {}
-      }
-    }
-  }
-}
-```
+## Configuration
 
-### With opencode (`.opencode/opencode.json` or `opencode.json`)
+| Variable | Default | Purpose |
+|---|---|---|
+| `KHAN_WORKSPACE_DIR` | `/data` in the container; `${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar` for source runs | Workspace containing calendar data and `khal.conf`. |
+| `KHAN_TIMEZONE` | `America/Sao_Paulo` | IANA timezone used for calendar operations. |
+| `KHAN_DEFAULT_CALENDAR` | `nanobot` | Default calendar name. |
+| `KHAN_ENABLE_LOCK` | `true` | Lock writes; disable only when a single writer is guaranteed. |
+| `KHAN_SUBPROCESS_TIMEOUT` | `15` seconds | Timeout for `khal` subprocess calls. |
+| `KHAN_LOG_LEVEL` | `INFO` | Python logging level. |
+| `KHAN_EXPORT_MAX_BYTES` | `16777216` | Maximum ICS export size (16 MiB). |
+| `KHAN_TIMEFORMAT`, `KHAN_DATEFORMAT`, `KHAN_LONGDATEFORMAT`, `KHAN_DATETIMEFORMAT`, `KHAN_LONGDATETIMEFORMAT` | `%H:%M`, `%d/%m/%Y` (date and time formats) | `khal` display formats. |
 
-```json
-{
-  "mcp": {
-    "percival-khan-calendar": {
-      "type": "local",
-      "command": [
-        "docker", "compose", "-f",
-        "/path/to/percival-khan-calendar/docker-compose.yml",
-        "run", "--rm", "-T", "server"
-      ],
-      "environment": {}
-    }
-  }
-}
-```
+Existing calendar data is not migrated automatically. Set `KHAN_WORKSPACE_DIR` (or the Compose host-path variable) to the existing data location explicitly. Do not mount unrelated host directories into the container.
 
-### With the Docker MCP Toolkit gateway
+## Development and verification
 
-The Docker MCP Toolkit organizes MCP servers into profiles. The
-easiest path is to add the image to a profile via the Desktop UI,
-or pre-register it with the CLI:
+The supported packaged/runtime path is Docker. For source development, use Python 3.11+ and `uv`:
 
 ```bash
-# Build the image once (the gateway expects it to be present).
-docker build -t percival-khan-calendar:dev .
-
-# Add to a profile — see https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/
-# (catalog submission is NOT shipped in v0.4.0; this is the manual path).
-docker mcp profile create khan-local --image percival-khan-calendar:dev
+uv sync --extra test --dev
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
 ```
 
-The MCP client (Claude Desktop, VS Code, Cursor, …) then attaches
-through the gateway:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "MCP_DOCKER": {
-        "command": "docker",
-        "args": ["mcp", "gateway", "run", "--profile", "khan-local"],
-        "type": "stdio"
-      }
-    }
-  }
-}
-```
-
-### Configuration
-
-The runtime reads the same environment variables the local install
-does — see `.env.example`. `KHAN_WORKSPACE_DIR` defaults to `/data`
-inside the container (bind-mount your host's
-`${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar` to `/data`);
-`KHAN_ENABLE_LOCK` defaults to `true`. Set `KHAN_TIMEZONE` to the manager
-profile's timezone. Existing calendars are not migrated automatically.
-
-Pass overrides via `--env-file .env`, `docker run -e KEY=VALUE …`,
-or the `environment:` / `env_file:` keys in `docker-compose.yml`.
-Secrets never end up baked into the image: `.dockerignore` blocks
-`.env*` from the build context.
-
-### CI
-
-`.github/workflows/ci.yml` runs a dedicated `docker` job that builds
-the image with BuildKit + GHA layer cache, then runs smoke checks
-(`--version` exits 0 with the SemVer from `pyproject.toml`,
-`khan_get_status` returns a non-empty operational response, and
-`docker inspect` confirms the non-root user, the stdio entrypoint,
-and the OCI labels).
-
----
-
-## 📁 Layout (post v0.3.0)
-
-```
-src/percival_khan_calendar/
-├── constants.py        # Final[Path] / Final[str] knobs
-├── exceptions.py       # 4 typed exceptions
-├── lifecycle.py        # setup_workspace + auto-heal
-├── security.py         # envelope_untrusted_data + argument guard
-├── server.py           # FastMCP entrypoint (fresh instance per boot)
-├── models.py           # Pydantic validators
-├── adapters/
-│   ├── khal_adapter.py     # read/write + UID + canonical-Z serialiser
-│   ├── locks.py            # workspace_lock context manager
-│   └── subprocess_runner.py # executar_comando_khal + env passing
-├── tools/
-│   ├── create_event.py, delete_event.py, delete_event_safe.py
-│   ├── export_ics.py, list_calendars.py, list_events.py
-│   ├── search_events.py, status.py, update_event.py, view.py
-│   └── prompts.py          # 6 primitive prompts
-└── resources/
-    └── docs.py             # khan://schema/main (text/markdown)
-```
-
----
-
-## 📚 About the Project
-
-This server is an integral module of the **percival.OS** project. It
-acts as an agentic wrapper for `khal`, allowing Nanobot to manage your
-schedule intelligently.
-
-- **Main Repository**: [https://github.com/bill-kopp-ai-dev/percival.OS](https://github.com/bill-kopp-ai-dev/percival.OS)
-- **Issues / Discussions**: [https://github.com/bill-kopp-ai-dev/percival.OS/issues](https://github.com/bill-kopp-ai-dev/percival.OS/issues)
-- **License**: MIT
-- **Issue tracker for this server**: `MCP_Docs/Issues/` in the
-  upstream monorepo (e.g.
-  `2026-07-22-percival-khan-calendar-list-events-mismatch.md`).
-
----
-
-## 🩺 Troubleshooting
-
-### `KhanInfrastructureError: khal binary not found`
-
-The Docker image includes `khal` from the locked Python dependencies, so no
-host executable bind or installation is needed. For source installs, run
-`uv sync` in the project environment and verify `khal --version` there.
-
-### `KhanInfrastructureError: timed out after Xs`
-
-The khal SQLite DB may be locked. Wait a moment and retry, or set
-`KHAN_ENABLE_LOCK=false` only if a single writer is guaranteed for the
-workspace.
-
-### `KhanAmbiguousMatchError: Ambiguous match for 'foo': N candidates`
-
-Your search matched more than one event. Provide a more specific
-term, or use `khan_get_event` to inspect candidates one by one.
-
-### `KhanLockError: Workspace lock held by another process`
-
-A second agent is currently editing the calendar. Wait a few
-seconds, or set `KHAN_ENABLE_LOCK=false` only when no other writer can access
-the workspace (loses concurrency safety).
-
-### `khan.conf` keeps re-generating on every boot
-
-This is the **auto-heal** kicking in because something is mutating
-the conf file (likely a side-effect of a tool that writes to it, or
-external `khal` config edits). Look at the `khan_get_status` output
-to see the drift message; the auto-heal is **safe and idempotent**.
-
-### Workspace bootstrap failed
-
-Make sure the configured `KHAN_WORKSPACE_DIR` is writable. The default is
-`${XDG_DATA_HOME:-~/.local/share}/percival/khan-calendar`. Existing
-`~/.nanobot/workspace/khalCalendar` data requires an explicit override;
-there is no automatic migration. Delete
-`khal.conf` to force regeneration on the next start. If permissions
-keep getting denied, check umask and parent directory ownership.
-
-### Running tests
+The optional integration tests use a real `khal` executable and a writable test workspace:
 
 ```bash
-uv sync --extra test
-uv run pytest --cov=src/percival_khan_calendar --cov-report=term-missing
-# Stage-2 execution results are recorded in docs/plans/2026-10-27-stage-2-remediation-plan.md.
+uv run pytest --no-cov -m integration
 ```
 
----
+CI runs the Python test/lint job and a Docker build with image smoke checks, XDG-state write/ownership verification and MCP stdio conformance.
 
-## 📜 Changelog
+## Security and privacy
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full history. Current
-release: **0.4.0** (Docker packaging + CLI smoke surface;
-contract preserved verbatim from v0.2.3).
+- The container runs as an unprivileged user, exposes no TCP port and uses stdio for MCP.
+- Calendar files and exports are local workspace data. Protect the host directory and backups as you would other private schedule data.
+- Calendar content is treated as untrusted input; free-text arguments and calendar names are validated.
+- The image build excludes local environment files, project metadata, tests and development artifacts.
 
----
-*Developed with ❤️ by the percival.OS Team*
+## License
+
+MIT. See [LICENSE](LICENSE).
