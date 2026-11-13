@@ -55,6 +55,26 @@ def test_create_event_persists_ics(adapter_with_dir):
 
 
 @pytest.mark.parametrize(
+    ("start", "expected_start", "expected_end"),
+    [
+        ("06/03/2027", b"DTSTART;VALUE=DATE:20270306", b"DTEND;VALUE=DATE:20270307"),
+        ("2027-03-06", b"DTSTART;VALUE=DATE:20270306", b"DTEND;VALUE=DATE:20270307"),
+    ],
+)
+def test_date_only_create_is_all_day_with_exclusive_next_day_end(
+    adapter_with_dir, start, expected_start, expected_end
+):
+    match = adapter_with_dir.write_event(title="Birthday", start=start)
+
+    raw = match.filepath.read_bytes()
+    event = Calendar.from_ical(raw).walk("VEVENT")[0]
+    assert expected_start in raw
+    assert expected_end in raw
+    assert event["DTSTART"].dt.isoformat() == "2027-03-06"
+    assert event["DTEND"].dt.isoformat() == "2027-03-07"
+
+
+@pytest.mark.parametrize(
     ("duration", "delta"),
     [
         ("30m", timedelta(minutes=30)),

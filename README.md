@@ -338,8 +338,11 @@ any MCP-aware client.
 ### Quick start
 
 ```bash
-# 1. Build the image locally (VERSION is read from pyproject.toml).
-docker build --build-arg VERSION=0.4.0 --build-arg GIT_SHA=local \
+# 1. Build the image locally (VERSION must match pyproject.toml).
+VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+GIT_SHA=$(git rev-parse --short HEAD)
+test -z "$(git status --porcelain)" || GIT_SHA="${GIT_SHA}-dirty"
+docker build --build-arg VERSION="$VERSION" --build-arg GIT_SHA="$GIT_SHA" \
   -t percival-khan-calendar:dev .
 
 # 2. Smoke (offline, no network):

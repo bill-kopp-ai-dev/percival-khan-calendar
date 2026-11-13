@@ -9,10 +9,11 @@
 #  and exposes no TCP ports.
 #
 #  Build arguments:
-#    VERSION         — SemVer from pyproject.toml. Default 0.0.0.
+#    VERSION         — SemVer from pyproject.toml. Required.
 #                      Stamped on org.opencontainers.image.version.
-#    GIT_SHA         — short commit SHA for traceability. Default
-#                      "unknown". Stamped on org.opencontainers.image.revision.
+#    GIT_SHA         — source commit SHA (7-40 hex chars, optionally
+#                      suffixed with -dirty); "local" is development-only.
+#                      Stamped on org.opencontainers.image.revision.
 #    PYTHON_VERSION  — Python minor version. Default 3.12 (matches CI).
 #    UV_VERSION      — pinned uv release. Default 0.5.11.
 #
@@ -35,8 +36,8 @@ FROM python:3.12-slim-trixie@sha256:2b4f19dae3a777dfc3b76730bda1e82e1f66ab2a2686
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-bookworm-slim@sha256:cc9311ae7d42ccb51f6ac10c8ab8526de8a3f484b36349fd87af8e5ced7079c0 AS builder
 
-ARG VERSION=0.0.0
-ARG GIT_SHA=unknown
+ARG VERSION
+ARG GIT_SHA
 
 WORKDIR /app
 
@@ -49,6 +50,20 @@ ENV UV_COMPILE_BYTECODE=1 \
 # Copy the lockfile, project metadata and README first so the
 # dependency layer caches independently of the source tree.
 COPY pyproject.toml uv.lock README.md LICENSE ./
+
+RUN python - "$VERSION" "$GIT_SHA" <<'PY'
+import re
+import sys
+import tomllib
+
+version, git_sha = sys.argv[1:]
+with open("pyproject.toml", "rb") as project_file:
+    project_version = tomllib.load(project_file)["project"]["version"]
+if version != project_version:
+    raise SystemExit(f"VERSION {version!r} must match pyproject.toml ({project_version!r})")
+if git_sha != "local" and re.fullmatch(r"[0-9a-f]{7,40}(?:-dirty)?", git_sha) is None:
+    raise SystemExit("GIT_SHA must be 7-40 lowercase hex characters, optionally suffixed -dirty")
+PY
 
 # Install dependencies only — the project itself will be installed
 # in a second pass after the source is in place.
@@ -99,8 +114,8 @@ RUN printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian
     && rm -f /usr/bin/nsenter /usr/bin/infocmp \
     && rm -rf /var/lib/apt/lists/*
 
-ARG VERSION=0.0.0
-ARG GIT_SHA=unknown
+ARG VERSION
+ARG GIT_SHA
 
 # OCI image labels — drive discovery from registries, scanners and
 # Docker Desktop. Authors credit the current copyright holder while
@@ -124,6 +139,10 @@ RUN groupadd --system --gid 1000 app && \
 # owns it (avoids "Permission denied" on first write when the host
 # bind-mounts ~/.nanobot/workspace/khalCalendar:/data).
 RUN mkdir -p /data && chown app:app /data
+
+# The application stores khal configuration and other XDG state under
+# $HOME/.local; prepare it for the non-root runtime user.
+RUN install -d -o app -g app /app/.local
 
 WORKDIR /app
 

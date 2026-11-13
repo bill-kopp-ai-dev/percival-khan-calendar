@@ -79,6 +79,20 @@ jobs:
           set -euo pipefail
           output=$(docker run --rm percival-khan-calendar:ci --help)
           echo "$output" | grep -Fq "Model Context Protocol"
+      - name: Smoke (XDG state is writable by app)
+        run: |
+          docker run --rm --network=none --entrypoint python percival-khan-calendar:ci -c '
+          import os
+          from pathlib import Path
+
+          target = Path("/app/.local/share/percival/khan-calendar/khal.conf")
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text("[calendars]\n", encoding="utf-8")
+          info = target.stat()
+          assert (info.st_uid, info.st_gid) == (1000, 1000), (info.st_uid, info.st_gid)
+          assert os.getuid() == 1000, os.getuid()
+          print(f"XDG state writable; khal.conf owner={info.st_uid}:{info.st_gid}")
+          '
       - name: MCP stdio conformance (offline)
         run: >-
           python3 scripts/docker-ci-conformance.py

@@ -146,7 +146,7 @@ Calling pattern:
     khan_create_event(
         title="string not starting with - and not containing --",
         start="see TIME-EXPRESSIONS below",
-        end="see TIME-EXPRESSIONS below",     # optional, default = start+1h
+        end="see TIME-EXPRESSIONS below",     # optional; timed default = start+1h
         description="string, free-form",      # optional
         location="string, free-form",        # optional
         alarm="",                             # or "15m" / "1h" / "2d"
@@ -157,7 +157,7 @@ Calling pattern:
 TIME-EXPRESSIONS (``start`` and date/time values for ``end``):
 
 * ``"today"`` / ``"tomorrow"`` / ``"now"``
-* ``"DD/MM/YYYY"`` → all-day, midnight
+* ``"DD/MM/YYYY"`` or ``"YYYY-MM-DD"`` → all-day
 * ``"DD/MM/YYYY HH:MM"`` → exact local time  (PREFERRED for predictability)
 * ``"HH:MM"`` → today's wall clock at that time
 * ``"today HH:MM"`` / ``"tomorrow HH:MM"`` (compound)
@@ -165,7 +165,8 @@ TIME-EXPRESSIONS (``start`` and date/time values for ``end``):
 For ``end`` only, a positive elapsed duration may also be used: an integer
 followed by one lowercase unit ``s``, ``m``, ``h`` or ``d`` (for example
 ``end="30m"``). ``1d`` means 24 elapsed hours. Invalid, zero, compound or
-unknown-unit durations are rejected. If ``end`` is omitted, the default is 1h.
+unknown-unit durations are rejected. If ``end`` is omitted for a timed event,
+the default is 1h. A date-only event ends at the start of the following date.
 
 ALARM FORMAT — ``alarm="<n><unit>"`` where unit ∈ {{m, h, d}}:
 * ``"15m"`` 15 minutes before

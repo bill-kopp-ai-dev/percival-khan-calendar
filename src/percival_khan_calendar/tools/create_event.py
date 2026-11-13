@@ -36,9 +36,9 @@ def register_create_event_tools(mcp: FastMCP, adapter: KhalAdapter) -> None:
 
         Parameters:
         - title (Required): Name of the event.
-        - start (Required): Start date and/or time. Supports
-          'today 14:00', 'tomorrow', 'DD/MM/YYYY HH:MM', or just
-          'HH:MM'.
+        - start (Required): Start date and/or time. A date-only value
+          ('DD/MM/YYYY' or 'YYYY-MM-DD') creates an all-day event;
+          timed inputs include 'today 14:00', 'DD/MM/YYYY HH:MM', or 'HH:MM'.
         - end (Optional): End date/time or elapsed duration, e.g. '30m', '2h',
           '1d', or '45s' (positive integer plus one lowercase unit).
         - description (Optional): Additional notes or details.

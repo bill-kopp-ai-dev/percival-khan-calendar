@@ -23,7 +23,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -243,20 +243,26 @@ class KhalAdapter:
             ev = Event()
             ev.add("uid", _make_uid())
             ev.add("summary", title)
-            start_dt = dtstart or _parse_khal_time(start)
-            # S6 (cosmetic): round-trip DTSTART/DTEND through UTC so the
-            # icalendar library emits the canonical RFC-5545 ``Z`` form
-            # consistently across create and update paths. Without this
-            # the writer would emit ``DTSTART:…+00:00`` on the update
-            # path but ``DTSTART:…Z`` on the create path.
-            start_dt = _to_utc_z(start_dt)
-            ev.add("dtstart", start_dt)
-            if dtend:
-                ev.add("dtend", _to_utc_z(dtend))
-            elif end:
-                ev.add("dtend", _to_utc_z(_resolve_event_end(end, start_dt)))
+            all_day = dtstart is None and dtend is None and not end
+            start_date = _parse_khal_date(start) if all_day else None
+            if start_date is not None:
+                ev.add("dtstart", start_date)
+                ev.add("dtend", start_date + timedelta(days=1))
             else:
-                ev.add("dtend", _to_utc_z(start_dt + timedelta(hours=1)))
+                start_dt = dtstart or _parse_khal_time(start)
+                # S6 (cosmetic): round-trip DTSTART/DTEND through UTC so the
+                # icalendar library emits the canonical RFC-5545 ``Z`` form
+                # consistently across create and update paths. Without this
+                # the writer would emit ``DTSTART:…+00:00`` on the update
+                # path but ``DTSTART:…Z`` on the create path.
+                start_dt = _to_utc_z(start_dt)
+                ev.add("dtstart", start_dt)
+                if dtend:
+                    ev.add("dtend", _to_utc_z(dtend))
+                elif end:
+                    ev.add("dtend", _to_utc_z(_resolve_event_end(end, start_dt)))
+                else:
+                    ev.add("dtend", _to_utc_z(start_dt + timedelta(hours=1)))
             if description:
                 ev.add("description", description)
             if location:
@@ -477,6 +483,22 @@ def _parse_khal_time(value: str) -> datetime:
             the wrong date when the user mistyped the input.
     """
     return _parse_khal_time_wall_clock(value).astimezone(timezone.utc)
+
+
+def _parse_khal_date(value: str) -> date | None:
+    """Return a calendar date for supported date-only input, otherwise ``None``.
+
+    Date-only events use RFC 5545 DATE values and a one-day exclusive end.
+    Inputs with a time component remain datetimes and retain the UTC
+    serialization behavior of :func:`_parse_khal_time`.
+    """
+    text = value.strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 
 _EVENT_DURATION_RE = re.compile(r"([0-9]+)([smhd])")
